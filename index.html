@@ -1608,6 +1608,8 @@ document.getElementById("btn-print-rep").addEventListener("click",()=>{
   </body></html>`);
   w.document.close();
 });
+
+document.getElementById("btn-export-rep").addEventListener("click",()=>{
   const name=document.getElementById("rep-filter-collab").value;
   const year=parseInt(document.getElementById("rep-filter-year").value)||today.getFullYear();
   if(!name){alert("Selecciona un colaborador primero");return;}
