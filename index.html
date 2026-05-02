@@ -102,7 +102,76 @@
     .modal-actions { display:flex; gap:10px; justify-content:flex-end; }
     .btn-cancel { background:none; color:#64748b; border:1px solid #e2e8f0; padding:9px 18px; border-radius:8px; cursor:pointer; font-size:.88rem; transition:background .18s; }
     .btn-cancel:hover { background:#f8fafc; }
-    @media(max-width:640px){ .app-header h1{font-size:1.1rem;} .tab{padding:10px 14px;font-size:.82rem;} .tab-panel{padding:12px;} .month-label{min-width:160px;font-size:1rem;} }
+    /* SETUP MODAL */
+    .setup-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.85); z-index:2000; align-items:center; justify-content:center; }
+    .setup-overlay.open { display:flex; }
+    .setup-box { background:white; border-radius:20px; padding:32px; width:480px; max-width:95vw; box-shadow:0 24px 80px rgba(0,0,0,.4); }
+    .setup-box h2 { font-size:1.25rem; font-weight:800; color:#0f172a; margin-bottom:4px; }
+    .setup-box .setup-sub { font-size:.83rem; color:#64748b; margin-bottom:24px; }
+    .setup-label { font-size:.8rem; font-weight:600; color:#334155; margin-bottom:5px; display:block; }
+    .setup-input { width:100%; padding:10px 13px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:.93rem; margin-bottom:14px; outline:none; transition:border-color .2s; box-sizing:border-box; }
+    .setup-input:focus { border-color:#1e40af; }
+    .setup-radio-group { display:flex; gap:10px; margin-bottom:14px; }
+    .setup-radio-btn { flex:1; padding:10px; border:1.5px solid #e2e8f0; border-radius:8px; cursor:pointer; text-align:center; font-size:.82rem; font-weight:600; color:#475569; transition:all .2s; }
+    .setup-radio-btn.selected { border-color:#1e40af; background:#eff6ff; color:#1e40af; }
+    .setup-cloud-fields { display:none; background:#f8fafc; border-radius:10px; padding:14px; margin-bottom:14px; }
+    .setup-cloud-fields.show { display:block; }
+    .setup-divider { border:none; border-top:1px solid #e2e8f0; margin:16px 0; }
+    .btn-setup-save { width:100%; padding:12px; background:linear-gradient(135deg,#1e3a5f,#1e40af); color:white; border:none; border-radius:10px; font-size:.98rem; font-weight:700; cursor:pointer; transition:opacity .2s; }
+    .btn-setup-save:hover { opacity:.9; }
+    .btn-settings { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); color:white; padding:6px 10px; border-radius:7px; cursor:pointer; font-size:.8rem; transition:background .18s; margin-left:6px; }
+    .btn-settings:hover { background:rgba(255,255,255,.25); }
+    @media(max-width:640px){
+      /* HEADER */
+      .app-header { padding:10px 14px; gap:8px; flex-wrap:wrap; }
+      .app-header h1 { font-size:1rem; }
+      .app-header .sub { font-size:.7rem; }
+      .gm-logo img { width:36px; height:36px; }
+      .header-right { flex-direction:row; align-items:center; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+      .header-date { display:none; }
+      .sync-btn { font-size:.72rem; padding:4px 8px; }
+      .btn-settings { font-size:.72rem; padding:4px 7px; }
+      /* TABS — scroll horizontal */
+      .tabs { padding:0 8px; overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+      .tabs::-webkit-scrollbar { display:none; }
+      .tab { padding:10px 12px; font-size:.78rem; white-space:nowrap; flex-shrink:0; }
+      /* PANELS */
+      .tab-panel { padding:10px 10px; }
+      /* CALENDAR CONTROLS */
+      .cal-controls { flex-direction:column; align-items:stretch; gap:8px; }
+      .month-nav { justify-content:center; }
+      .month-label { font-size:.95rem; min-width:0; }
+      .legend { gap:5px; }
+      .leg-item { font-size:.7rem; padding:3px 8px; }
+      /* CALENDAR TABLE — reduce name column */
+      #cal-table th:first-child, #cal-table td:first-child { min-width:110px; max-width:140px; padding:5px 7px; font-size:.72rem; }
+      .ic-cell { min-width:32px; }
+      .cal-search-wrap { width:100%; }
+      /* MODAL */
+      .modal-box { min-width:0; width:calc(100vw - 32px); padding:18px 16px; }
+      .modal-box.wide { min-width:0; max-width:calc(100vw - 32px); }
+      /* SETUP */
+      .setup-box { padding:22px 16px; }
+      .setup-radio-group { flex-direction:column; }
+      /* RH / RESUMEN */
+      #rh-filters { flex-direction:column !important; gap:8px !important; }
+      #rh-filters select, #rh-filters input { width:100%; }
+      #rep-cards { gap:7px; }
+      .rep-card { min-width:80px; padding:10px 12px; flex:1; }
+      /* RANKING */
+      .ranking-row { flex-wrap:wrap; gap:4px; }
+      .rank-name { font-size:.78rem; }
+      /* PLANEACION */
+      .plan-wrap { overflow-x:auto; }
+      /* BUTTONS */
+      .nav-btn { width:40px; height:40px; font-size:1.3rem; }
+      .today-btn { padding:8px 14px; }
+      .turno-btn { padding:8px 12px; }
+      /* COLABORADORES */
+      .coll-actions { flex-wrap:wrap; }
+      /* REPORTE */
+      .rep-row { flex-wrap:wrap; gap:4px; font-size:.8rem; }
+    }
     /* IMPORT */
     .btn-import { background:white; color:#1e40af; border:1.5px solid #1e40af; padding:9px 18px; border-radius:8px; cursor:pointer; font-size:.88rem; font-weight:600; transition:background .2s,color .2s; }
     .btn-import:hover { background:#1e40af; color:white; }
@@ -329,12 +398,13 @@
   <div class="gm-logo">
     <img src="data:image/jpeg;base64,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" alt="General Motors" style="width:48px;height:48px;object-fit:contain;filter:drop-shadow(0 1px 3px rgba(0,0,0,.4));">
     <div>
-      <h1>V4 Vestiduras</h1>
-      <div class="sub">Control de Incidencias &mdash; L&iacute;nea Vestiduras 4</div>
+      <h1 id="hdr-line-name">Vestiduras 4</h1>
+      <div class="sub">Control de Incidencias &mdash; <span id="hdr-supervisor">Supervisor</span></div>
     </div>
   </div>
   <div class="header-right">
     <div class="header-date" id="hdr-date"></div>
+    <button class="btn-settings" id="btn-open-setup" title="Configurar línea">&#9881; Mi L&iacute;nea</button>
     <button class="sync-btn" id="btn-sync-status" title="Configurar sincronización en la nube">
       <span class="sync-dot off" id="sync-dot"></span>
       <span id="sync-label">Sin nube</span>
@@ -413,6 +483,8 @@
       <button class="btn-import" id="btn-import-excel">&#128194; Importar desde Excel</button>
       <input type="file" id="file-excel-input" accept=".xlsx,.xls,.csv" style="display:none" />
       <button class="btn-primary" id="btn-add-collab">+ Agregar Colaborador</button>
+      <button onclick="exportBackup()" style="background:#065f46;color:white;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:5px;" title="Descargar todos los datos como archivo de respaldo">&#11015; Backup JSON</button>
+      <label style="background:#1e3a8a;color:white;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:5px;" title="Restaurar datos desde un backup previo">&#11014; Restaurar Backup<input type="file" accept=".json" style="display:none" onchange="importBackup(this.files[0]);this.value=''" /></label>
     </div>
   </div>
   <div class="card" id="coll-list"></div>
@@ -521,6 +593,21 @@
     <div id="ana-patterns"></div>
   </div>
 </section>
+
+<!-- MODAL SETUP — Configuración de línea (solo cosmético, NO toca datos) -->
+<div class="setup-overlay" id="modal-setup">
+  <div class="setup-box">
+    <div id="setup-step-1">
+      <h2>&#128640; Bienvenido al Control de Incidencias</h2>
+      <div class="setup-sub">Personaliza el nombre de tu l&iacute;nea. Tus datos en la nube no se modificar&aacute;n.</div>
+      <label class="setup-label">Nombre de la l&iacute;nea *</label>
+      <input class="setup-input" id="setup-linename" type="text" placeholder="Ej. Vestiduras 4, Motores 1..." maxlength="40" />
+      <label class="setup-label">Tu nombre (Supervisor) *</label>
+      <input class="setup-input" id="setup-supervisor" type="text" placeholder="Nombre completo" maxlength="60" />
+      <button class="btn-setup-save" onclick="saveSetup()">Guardar &#10003;</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL turno -->
 <div class="modal-overlay" id="modal-turno">
@@ -635,16 +722,25 @@
 <div class="modal-overlay" id="modal-cloud">
   <div class="modal-box wide">
     <h3>&#9729; Sincronización en la Nube</h3>
-    <div class="cloud-steps">
-      <b>Pasos para activar (solo una vez):</b>
+
+    <!-- OPCIÓN A: Crear espacio automático -->
+    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+      <div style="font-weight:700;color:#166534;font-size:.88rem;margin-bottom:6px;">&#10024; Opción fácil — Crear mi espacio automáticamente</div>
+      <div style="font-size:.78rem;color:#166534;margin-bottom:10px;">La app crea tu propio bin en la nube y migra tus datos actuales. No perderás nada.</div>
+      <button id="btn-cloud-autocreate" style="background:#16a34a;color:white;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;width:100%;">&#128640; Crear mi espacio en la nube</button>
+      <div id="autocreate-result" style="display:none;margin-top:10px;"></div>
+    </div>
+
+    <div style="text-align:center;color:#94a3b8;font-size:.78rem;margin-bottom:14px;">— o ingresa tus credenciales manualmente —</div>
+
+    <!-- OPCIÓN B: Manual -->
+    <div class="cloud-steps" style="margin-bottom:12px;">
       <ol>
         <li>Entra a <a href="https://jsonbin.io" target="_blank">jsonbin.io</a> y crea una cuenta gratis</li>
         <li>Ve a <b>API Keys</b> y copia tu <b>Master Key</b></li>
-        <li>Haz clic en <b>+ Create Bin</b>, pon <code>{"collaborators":[],"incidents":{}}</code> y guarda</li>
-        <li>Copia el <b>BIN ID</b> (lo ves en la URL o en la respuesta)</li>
+        <li>Crea un Bin nuevo y copia el <b>BIN ID</b></li>
         <li>Pega ambos aquí abajo y guarda</li>
       </ol>
-      Todos los que usen la app con los mismos datos podrán ver y capturar incidencias en tiempo real.
     </div>
     <div class="field-group">
       <label class="field-label">Master Key (empieza con $2b$...)</label>
@@ -1115,26 +1211,29 @@ function renderAnalisis(){
     return m===filterMonth;
   }
 
-  // ── 1. RANKING ──
-  const totals={};
-  collabs.forEach(n=>totals[n]=0);
+  // ── 1. RANKING ── (solo faltas injustificadas)
+  const fiTotals={};
+  collabs.forEach(n=>{fiTotals[n]=0;});
   Object.entries(data.incidents).forEach(([dk2,dd])=>{
     if(!inRange(dk2))return;
-    Object.entries(dd).forEach(([n,id])=>{if(id&&totals[n]!==undefined)totals[n]++;});
+    Object.entries(dd).forEach(([n,id])=>{
+      if(id==="FI"&&fiTotals[n]!==undefined)fiTotals[n]++;
+    });
   });
-  const ranked=[...collabs].sort((a,b)=>totals[a]-totals[b]);
-  const maxT=Math.max(1,...ranked.map(n=>totals[n]));
+  const ranked=[...collabs].sort((a,b)=>fiTotals[a]-fiTotals[b]);
+  const maxFI=Math.max(1,...ranked.map(n=>fiTotals[n]));
   const rankEl=document.getElementById("ana-ranking");
   if(!collabs.length){rankEl.innerHTML=`<div class="rh-empty">Sin colaboradores.</div>`;}
   else{
     const medals=["&#127947;","&#129352;","&#129353;"];
     const mClass=["gold","silver","bronze"];
     rankEl.innerHTML=ranked.map((n,i)=>{
-      const t=totals[n];
-      const pct=Math.round(t/maxT*100);
-      const barColor=t===0?"#86efac":t<=2?"#4ade80":t<=5?"#fb923c":"#ef4444";
-      const pos=i<3?`<span class="rank-pos ${mClass[i]}">${medals[i]}</span>`:`<span class="rank-pos">${i+1}</span>`;
-      return `<div class="ranking-row">${pos}<span class="rank-name">${esc(n)}</span><div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%;background:${barColor}"></div></div><span class="rank-count">${t}</span></div>`;
+      const fi=fiTotals[n];
+      const pct=Math.round(fi/maxFI*100);
+      const barColor=fi===0?"#86efac":fi<=2?"#4ade80":fi<=5?"#fb923c":"#ef4444";
+      const pos=i<3&&fi===0?`<span class="rank-pos ${mClass[i]}">${medals[i]}</span>`:`<span class="rank-pos">${i+1}</span>`;
+      const fiTag=fi>0?`<span style="font-size:.75rem;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:4px;padding:1px 6px;margin-left:4px">FI: ${fi}</span>`:`<span style="font-size:.75rem;color:#16a34a;background:#dcfce7;border-radius:4px;padding:1px 6px;margin-left:4px">Sin FI &#10003;</span>`;
+      return `<div class="ranking-row">${pos}<span class="rank-name">${esc(n)}</span>${fiTag}<div class="rank-bar-wrap" style="flex:1;margin-left:8px"><div class="rank-bar" style="width:${pct}%;background:${barColor}"></div></div><span class="rank-count">${fi}</span></div>`;
     }).join("");
   }
 
@@ -1921,6 +2020,109 @@ document.getElementById("btn-turno-save").addEventListener("click",()=>{
 });
 
 /* ═══════════════════════════════════════════
+   CONFIGURACIÓN DE LÍNEA — Setup inicial
+═══════════════════════════════════════════ */
+const APP_CONFIG_KEY="v4-app-config";
+let _setupMode="new"; // "new" | "code"
+let _generatedCode="";
+
+function getAppConfig(){
+  try{
+    const c=JSON.parse(localStorage.getItem(APP_CONFIG_KEY));
+    if(c&&c.lineName)return c;
+  }catch{}
+  return null;
+}
+
+function applyAppConfig(cfg){
+  document.getElementById("hdr-line-name").textContent=cfg.lineName||"Vestiduras 4";
+  document.getElementById("hdr-supervisor").textContent=cfg.supervisor||"Supervisor";
+  document.title=(cfg.lineName||"V4")+" \u2014 Control de Incidencias";
+}
+
+function selectSetupMode(mode){
+  _setupMode=mode;
+  document.getElementById("setup-mode-new").classList.toggle("selected",mode==="new");
+  document.getElementById("setup-mode-code").classList.toggle("selected",mode==="code");
+  document.getElementById("setup-code-field").classList.toggle("show",mode==="code");
+}
+
+function closeSetup(){
+  document.getElementById("modal-setup").classList.remove("open");
+}
+
+function saveSetup(){
+  const lineName=document.getElementById("setup-linename").value.trim();
+  const supervisor=document.getElementById("setup-supervisor").value.trim();
+  if(!lineName){alert("Por favor ingresa el nombre de tu l\u00ednea.");return;}
+  if(!supervisor){alert("Por favor ingresa tu nombre.");return;}
+  // SOLO guarda nombre de línea y supervisor — NUNCA toca datos ni cloud config
+  const existing=getAppConfig()||{};
+  const cfg={...existing, lineName, supervisor};
+  localStorage.setItem(APP_CONFIG_KEY,JSON.stringify(cfg));
+  applyAppConfig(cfg);
+  closeSetup();
+  showToast("Configuraci\u00f3n guardada");
+}
+
+function openSetupModal(){
+  const cfg=getAppConfig()||{};
+  document.getElementById("setup-linename").value=cfg.lineName||"";
+  document.getElementById("setup-supervisor").value=cfg.supervisor||"";
+  document.getElementById("modal-setup").classList.add("open");
+}
+
+function initSetup(){
+  const cfg=getAppConfig();
+  if(cfg){applyAppConfig(cfg);}
+  else{openSetupModal();}
+  document.getElementById("btn-open-setup").addEventListener("click",openSetupModal);
+}
+
+/* ═══════════════════════════════════════════
+   BACKUP — Exportar / Importar JSON
+═══════════════════════════════════════════ */
+function exportBackup(){
+  const data=load();
+  const cfg=getAppConfig()||{};
+  const blob=new Blob([JSON.stringify({...data,_backup:{lineName:cfg.lineName,supervisor:cfg.supervisor,date:new Date().toISOString()}},null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  const d=new Date();
+  a.download=`backup-v4-${(cfg.lineName||"linea").replace(/\s+/g,"-")}-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast("Backup descargado correctamente");
+}
+
+function importBackup(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.collaborators&&!data.incidents){alert("Archivo inv\u00e1lido: no parece un backup de esta app.");return;}
+      if(!confirm("Esto reemplazar\u00e1 todos tus datos actuales con el backup. \u00BFContinu\u00e1r?")){return;}
+      // Guardar en local y sincronizar a nube
+      data._ts=Date.now();
+      localStorage.setItem(STORE,JSON.stringify(data));
+      if(data.turno&&Array.isArray(data.turno.defaultWorkDays)){
+        localStorage.setItem(TURNO_KEY,JSON.stringify(data.turno));
+        updateTurnoLabel();
+      }
+      syncToCloud(data);
+      renderCalendar();
+      renderLegend();
+      showToast("Backup restaurado correctamente");
+    }catch(err){
+      alert("Error al leer el archivo: "+err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+
+/* ═══════════════════════════════════════════
    CLOUD SYNC — JSONBin.io
 ═══════════════════════════════════════════ */
 const CLOUD_KEY="v4-cloud-config";
@@ -1961,7 +2163,7 @@ async function syncToCloud(data){
   }
 }
 
-async function syncFromCloud(showResult){
+async function syncFromCloud(showResult, forceLoad){
   const {apiKey,binId}=getCloudConfig();
   if(!apiKey||!binId){setSyncUI("off","Sin nube");return false;}
   setSyncUI("syncing","Conectando...");
@@ -1979,8 +2181,10 @@ async function syncFromCloud(showResult){
       const localData=load();
       const cloudTs=cloudData._ts||0;
       const localTs=localData._ts||0;
-      // Solo sobreescribir local si la nube tiene datos más recientes
-      if(cloudTs>=localTs){
+      const hasRealCloudData=cloudData.collaborators&&cloudData.collaborators.length>0;
+      const hasRealLocalData=localData.collaborators&&localData.collaborators.length>0;
+      // Forzar carga desde nube (p.ej. al reconectar con código) o si nube es más reciente
+      if(forceLoad||(cloudTs>=localTs&&hasRealCloudData)||(!hasRealLocalData&&hasRealCloudData)){
         localStorage.setItem(STORE,JSON.stringify(cloudData));
         // Restaurar turno si viene en los datos de la nube
         if(cloudData.turno&&Array.isArray(cloudData.turno.defaultWorkDays)){
@@ -1990,16 +2194,16 @@ async function syncFromCloud(showResult){
         renderCalendar();
         renderLegend();
         if(showResult)showToast("Datos descargados de la nube correctamente");
-      } else {
-        // Local es más reciente — empujar local a la nube
+      } else if(hasRealLocalData) {
+        // Local tiene datos reales y es más reciente — empujar local a la nube
         syncToCloud(localData);
-        if(showResult)showToast("Datos locales más recientes — sincronizando a la nube");
+        if(showResult)showToast("Datos locales m\u00e1s recientes \u2014 sincronizando a la nube");
       }
-      setSyncUI("ok","Sincronizado ✓");
+      setSyncUI("ok","Sincronizado \u2713");
     }
     return true;
   }catch(e){
-    setSyncUI("error","Error de conexión");
+    setSyncUI("error","Error de conexi\u00f3n");
     console.warn("syncFromCloud error",e);
     return {error: e.message};
   }
@@ -2008,8 +2212,9 @@ async function syncFromCloud(showResult){
 /* Modal de configuración */
 function openCloudModal(){
   const cfg=getCloudConfig();
-  document.getElementById("input-api-key").value=cfg.apiKey||"";
-  document.getElementById("input-bin-id").value=cfg.binId||"";
+  document.getElementById("input-api-key").value=cfg.apiKey&&cfg.apiKey!==DEFAULT_API_KEY?cfg.apiKey:"";
+  document.getElementById("input-bin-id").value=cfg.binId&&cfg.binId!==DEFAULT_BIN_ID?cfg.binId:"";
+  document.getElementById("autocreate-result").style.display="none";
   document.getElementById("modal-cloud").classList.add("open");
 }
 function closeCloudModal(){document.getElementById("modal-cloud").classList.remove("open");}
@@ -2018,50 +2223,70 @@ document.getElementById("btn-sync-status").addEventListener("click",openCloudMod
 document.getElementById("btn-cloud-cancel").addEventListener("click",closeCloudModal);
 document.getElementById("modal-cloud").addEventListener("click",e=>{if(e.target===document.getElementById("modal-cloud"))closeCloudModal();});
 
+// AUTO-CREATE: crea bin propio y migra datos actuales sin tocar localStorage
+document.getElementById("btn-cloud-autocreate").addEventListener("click",async()=>{
+  const btn=document.getElementById("btn-cloud-autocreate");
+  const resultEl=document.getElementById("autocreate-result");
+  btn.textContent="Creando espacio...";btn.disabled=true;
+  resultEl.style.display="none";
+  try{
+    // 1. Tomar datos locales actuales (NO los borramos)
+    const currentData=load();
+    currentData._ts=Date.now();
+    // 2. Crear nuevo bin con los datos actuales
+    const lineName=(getAppConfig()||{}).lineName||"Mi Linea";
+    const resp=await fetch(JSONBIN,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-Master-Key":DEFAULT_API_KEY,"X-Bin-Name":lineName,"X-Bin-Private":"false"},
+      body:JSON.stringify(currentData)
+    });
+    if(!resp.ok){const t=await resp.text();throw new Error(t);}
+    const json=await resp.json();
+    const newBinId=json.metadata.id;
+    // 3. Guardar nuevas credenciales SIN tocar datos locales
+    localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey:DEFAULT_API_KEY,binId:newBinId}));
+    // 4. Actualizar config de app con nuevo binId
+    const appCfg=getAppConfig()||{};
+    appCfg.binId=newBinId;
+    localStorage.setItem(APP_CONFIG_KEY,JSON.stringify(appCfg));
+    // 5. Mostrar código para compartir/guardar
+    const lineCode="V4."+btoa(newBinId);
+    resultEl.style.display="block";
+    resultEl.innerHTML=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;font-size:.8rem;">
+      <div style="font-weight:700;color:#166534;margin-bottom:6px;">&#10003; Espacio creado exitosamente</div>
+      <div style="color:#166534;margin-bottom:8px;">Tus datos han sido migrados a tu propio bin. Guarda este c&oacute;digo para acceder desde otro dispositivo:</div>
+      <div style="background:white;border:1px dashed #86efac;border-radius:6px;padding:8px;font-family:monospace;font-size:.82rem;font-weight:700;color:#1e40af;word-break:break-all;margin-bottom:8px;" id="new-line-code">${lineCode}</div>
+      <button onclick="navigator.clipboard.writeText('${lineCode}').then(()=>showToast('C\u00f3digo copiado'))" style="background:#dcfce7;color:#166534;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:.78rem;font-weight:600;">&#128203; Copiar c&oacute;digo</button>
+    </div>`;
+    setSyncUI("ok","Sincronizado \u2713");
+    btn.textContent="&#10003; Espacio creado";
+  }catch(e){
+    resultEl.style.display="block";
+    resultEl.innerHTML=`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:.8rem;color:#991b1b;">Error: ${e.message}</div>`;
+    btn.textContent="&#128640; Crear mi espacio en la nube";
+    btn.disabled=false;
+  }
+});
+
 document.getElementById("btn-cloud-save").addEventListener("click",async()=>{
   const apiKey=document.getElementById("input-api-key").value.trim();
   const binId=document.getElementById("input-bin-id").value.trim();
   if(!apiKey||!binId){alert("Ingresa ambos campos: Master Key y BIN ID");return;}
-
   const btn=document.getElementById("btn-cloud-save");
-  btn.textContent="Conectando...";
-  btn.disabled=true;
-
+  btn.textContent="Conectando...";btn.disabled=true;
   localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey,binId}));
-
   const result=await syncFromCloud(true);
-
-  btn.textContent="Guardar y Conectar";
-  btn.disabled=false;
-
-  if(result===true){
-    closeCloudModal();
-  } else if(result&&result.error){
-    // Check if it's a CORS/network issue (file:// protocol)
-    if(result.error.includes("Failed to fetch")||result.error.includes("NetworkError")){
-      alert(
-        "❌ El navegador bloqueó la conexión.\n\n"+
-        "SOLUCIÓN: Abre el archivo desde un servidor local.\n"+
-        "1. Presiona F12 → Consola para ver el error exacto.\n\n"+
-        "O usa este truco:\n"+
-        "- Abre Edge\n"+
-        "- Ve a edge://flags\n"+
-        "- Busca 'block-insecure-private-network-requests'\n"+
-        "- Desactívalo\n\n"+
-        "Error: "+result.error
-      );
-    } else {
-      alert("❌ Error al conectar:\n\n"+result.error+"\n\nVerifica que el BIN ID y la Master Key sean correctos.");
-    }
-  }
+  btn.textContent="Guardar y Conectar";btn.disabled=false;
+  if(result===true){closeCloudModal();}
+  else if(result&&result.error){alert("\u274C Error al conectar:\n\n"+result.error+"\n\nVerifica que el BIN ID y la Master Key sean correctos.");}
 });
 
 document.getElementById("btn-cloud-clear").addEventListener("click",()=>{
-  if(!confirm("¿Desactivar la sincronización en la nube? Los datos locales no se borrarán."))return;
+  if(!confirm("\u00BFDesactivar la sincronizaci\u00f3n en la nube? Los datos locales no se borrar\u00e1n."))return;
   localStorage.removeItem(CLOUD_KEY);
   setSyncUI("off","Sin nube");
   closeCloudModal();
-  showToast("Sincronización desactivada. Los datos se guardan solo en este navegador.");
+  showToast("Sincronizaci\u00f3n desactivada. Los datos se guardan solo en este navegador.");
 });
 
 function initCloudSync(){
@@ -2112,6 +2337,7 @@ updateTurnoLabel();
 renderLegend();
 renderCalendar();
 initCloudSync();
+initSetup();
 </script>
 
 <footer class="app-footer">
