@@ -495,15 +495,25 @@
   <div class="coll-header">
     <h2>&#128100; Reporte por Colaborador</h2>
   </div>
-  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
     <label style="font-size:.8rem;font-weight:600;color:#374151;">Colaborador:</label>
-    <select id="rep-filter-collab" style="padding:6px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:.84rem;min-width:200px;"></select>
-    <label style="font-size:.8rem;font-weight:600;color:#374151;margin-left:4px;">A&ntilde;o:</label>
+    <select id="rep-filter-collab" style="padding:6px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:.84rem;min-width:180px;"></select>
+    <label style="font-size:.8rem;font-weight:600;color:#374151;margin-left:2px;">A&ntilde;o:</label>
     <select id="rep-filter-year" style="padding:6px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:.84rem;"></select>
-    <button id="btn-export-rep" class="btn-export" style="margin-left:auto;">&#11015; Exportar CSV</button>
+    <label style="font-size:.8rem;font-weight:600;color:#374151;margin-left:2px;">Desde:</label>
+    <input type="date" id="rep-date-from" style="padding:5px 10px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:.84rem;" />
+    <label style="font-size:.8rem;font-weight:600;color:#374151;">Hasta:</label>
+    <input type="date" id="rep-date-to" style="padding:5px 10px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:.84rem;" />
+    <button id="btn-rep-clear-range" style="padding:5px 10px;border-radius:8px;border:1px solid #e2e8f0;background:white;font-size:.78rem;cursor:pointer;color:#64748b;">&#10005; Limpiar fechas</button>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+      <button id="btn-export-rep" class="btn-export">&#11015; CSV</button>
+      <button id="btn-print-rep" style="padding:6px 14px;border-radius:8px;border:none;background:#6366f1;color:white;font-size:.82rem;font-weight:600;cursor:pointer;">&#128438; PDF</button>
+    </div>
   </div>
   <!-- Tarjetas resumen -->
   <div id="rep-cards" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;"></div>
+  <!-- Semanas -->
+  <div id="rep-weeks" style="margin-bottom:18px;"></div>
   <!-- Timeline detallado -->
   <div class="card" id="rep-list"></div>
 </section>
@@ -591,6 +601,20 @@
     <h3 class="ana-title">&#9888; Alertas de Patrones</h3>
     <p class="ana-subtitle">Colaboradores con comportamiento repetitivo detectado</p>
     <div id="ana-patterns"></div>
+  </div>
+
+  <!-- Sección 5: Comparativo entre colaboradores -->
+  <div class="ana-section">
+    <h3 class="ana-title">&#128202; Comparativo de Colaboradores</h3>
+    <p class="ana-subtitle">Tabla comparativa de incidencias por tipo para todos los colaboradores</p>
+    <div id="ana-comparativo"></div>
+  </div>
+
+  <!-- Sección 6: Productividad por semana -->
+  <div class="ana-section">
+    <h3 class="ana-title">&#128197; Incidencias por Semana</h3>
+    <p class="ana-subtitle">Distribuci&oacute;n semanal de incidencias en el per&iacute;odo seleccionado</p>
+    <div id="ana-weekly"></div>
   </div>
 </section>
 
@@ -1313,6 +1337,85 @@ function renderAnalisis(){
   else{
     patEl.innerHTML=alerts.map(a=>`<div class="pat-alert${a.level==="red"?" red":""}"><span class="pat-icon">${a.level==="red"?"&#128680;":"&#9888;"}</span><span class="pat-msg">${a.msg}</span></div>`).join("");
   }
+
+  // ── COMPARATIVO DE COLABORADORES ──
+  const compEl=document.getElementById("ana-comparativo");
+  if(!collabs.length){compEl.innerHTML=`<div class="rh-empty" style="padding:12px">Sin colaboradores registrados.</div>`;return;}
+  // build totals per collab per incident type
+  const compData=collabs.map(name=>{
+    const t=Object.fromEntries(INCIDENTS.map(i=>[i.id,0]));
+    let total=0;
+    Object.entries(data.incidents).forEach(([dk2,dd])=>{
+      if(!inRange(dk2)||!dd[name])return;
+      if(t[dd[name]]!==undefined){t[dd[name]]++;total++;}
+    });
+    return{name,t,total};
+  });
+  compData.sort((a,b)=>a.total-b.total);
+  // only show incident types that have at least 1 entry
+  const usedIncs=INCIDENTS.filter(i=>compData.some(c=>c.t[i.id]>0));
+  let tbl=`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:.78rem;">
+    <thead><tr style="background:#0f172a;color:white;">
+      <th style="padding:7px 12px;text-align:left;position:sticky;left:0;background:#0f172a;z-index:2;">Colaborador</th>
+      <th style="padding:7px 10px;text-align:center;background:#1e40af;">Total</th>`;
+  usedIncs.forEach(i=>{
+    tbl+=`<th style="padding:7px 8px;text-align:center;background:${i.color};white-space:nowrap;">${i.id}</th>`;
+  });
+  tbl+=`</tr></thead><tbody>`;
+  compData.forEach(({name,t,total},idx)=>{
+    const bg=idx%2===0?"#fff":"#f8fafc";
+    tbl+=`<tr style="background:${bg}">
+      <td style="padding:6px 12px;font-weight:600;position:sticky;left:0;background:${bg};border-right:1px solid #e2e8f0;">${esc(name)}</td>
+      <td style="padding:6px 10px;text-align:center;font-weight:700;color:${total?"#1e40af":"#94a3b8"};">${total||"—"}</td>`;
+    usedIncs.forEach(i=>{
+      const v=t[i.id];
+      tbl+=`<td style="padding:6px 8px;text-align:center;color:${v?i.color:"#cbd5e1"};font-weight:${v?"700":"400"};">${v||"—"}</td>`;
+    });
+    tbl+=`</tr>`;
+  });
+  tbl+=`</tbody></table></div>`;
+  compEl.innerHTML=tbl;
+
+  // ── INCIDENCIAS POR SEMANA ──
+  const wkEl=document.getElementById("ana-weekly");
+  const weekMap={};
+  Object.entries(data.incidents).forEach(([dk2,dd])=>{
+    if(!inRange(dk2))return;
+    Object.values(dd).forEach(incId=>{
+      if(!INC_MAP[incId])return;
+      const d=localDate(dk2);
+      const tmp=new Date(d);tmp.setHours(0,0,0,0);
+      tmp.setDate(tmp.getDate()+4-(tmp.getDay()||7));
+      const yr=tmp.getFullYear();
+      const wn=Math.ceil((((tmp-new Date(yr,0,1))/86400000)+1)/7);
+      const wk=`${yr}-S${String(wn).padStart(2,"0")}`;
+      if(!weekMap[wk])weekMap[wk]={total:0,counts:{}};
+      weekMap[wk].total++;
+      weekMap[wk].counts[incId]=(weekMap[wk].counts[incId]||0)+1;
+    });
+  });
+  const weeks=Object.entries(weekMap).sort((a,b)=>a[0].localeCompare(b[0]));
+  if(!weeks.length){wkEl.innerHTML=`<div class="rh-empty" style="padding:12px">Sin datos en el per\u00edodo.</div>`;return;}
+  const maxW=Math.max(...weeks.map(w=>w[1].total));
+  let wHtml=`<div style="padding:4px 0">`;
+  weeks.forEach(([wk,wd])=>{
+    const pct=maxW?Math.round(wd.total/maxW*100):0;
+    const badges=Object.entries(wd.counts).sort((a,b)=>b[1]-a[1]).map(([id,c])=>{
+      const inc=INC_MAP[id];
+      return `<span style="background:${inc?inc.color:"#64748b"};color:white;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;">${id}:${c}</span>`;
+    }).join(" ");
+    wHtml+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="min-width:78px;font-size:.75rem;font-weight:600;color:#475569;">${wk}</span>
+      <div style="flex:1;background:#f1f5f9;border-radius:6px;height:22px;overflow:hidden;">
+        <div style="width:${pct}%;background:#1e40af;height:100%;border-radius:6px;display:flex;align-items:center;padding:0 8px;min-width:28px;">
+          <span style="font-size:.7rem;color:white;font-weight:700;">${wd.total}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap;min-width:120px;">${badges}</div>
+    </div>`;
+  });
+  wHtml+=`</div>`;
+  wkEl.innerHTML=wHtml;
 }
 
 /* ═══════════════════════════════════════════
@@ -1342,21 +1445,25 @@ function renderReporte(){
   populateReporteFilters();
   const name=document.getElementById("rep-filter-collab").value;
   const year=parseInt(document.getElementById("rep-filter-year").value)||today.getFullYear();
+  const fromVal=document.getElementById("rep-date-from").value; // "YYYY-MM-DD" or ""
+  const toVal=document.getElementById("rep-date-to").value;
   const cards=document.getElementById("rep-cards");
   const list=document.getElementById("rep-list");
+  const weeksEl=document.getElementById("rep-weeks");
 
   if(!name){
-    cards.innerHTML="";
+    cards.innerHTML="";weeksEl.innerHTML="";
     list.innerHTML=`<div class="rh-empty">Selecciona un colaborador para ver su reporte.</div>`;
     return;
   }
 
   const data=load();
-  // gather all incidents for this person in the year
   const rows=[];
   Object.entries(data.incidents).forEach(([dateKey,dayData])=>{
     if(!dateKey.startsWith(String(year)))return;
     if(!dayData[name])return;
+    if(fromVal&&dateKey<fromVal)return;
+    if(toVal&&dateKey>toVal)return;
     const incId=dayData[name];
     const delivered=!!(data.formats&&data.formats[dateKey]&&data.formats[dateKey][name]);
     rows.push({dateKey,incId,delivered});
@@ -1368,8 +1475,9 @@ function renderReporte(){
   rows.forEach(r=>{if(totals[r.incId]!==undefined)totals[r.incId]++;});
   const grandTotal=rows.length;
   const fmtPending=rows.filter(r=>FORMAT_REQUIRED.has(r.incId)&&!r.delivered).length;
+  const rangeLabel=fromVal||toVal?` (${fromVal||"inicio"} a ${toVal||"fin"})`:"";
 
-  let cardsHtml=`<div class="rep-card"><div class="rc-count" style="color:#1e40af">${grandTotal}</div><div class="rc-label">Total incidencias</div></div>`;
+  let cardsHtml=`<div class="rep-card"><div class="rc-count" style="color:#1e40af">${grandTotal}</div><div class="rc-label">Total${rangeLabel}</div></div>`;
   INCIDENTS.forEach(i=>{
     if(!totals[i.id])return;
     cardsHtml+=`<div class="rep-card"><div class="rc-count" style="color:${i.color}">${totals[i.id]}</div><div class="rc-label">${i.id} &mdash; ${i.name}</div></div>`;
@@ -1377,12 +1485,52 @@ function renderReporte(){
   if(fmtPending>0)cardsHtml+=`<div class="rep-card" style="border-color:#f59e0b"><div class="rc-count" style="color:#f59e0b">${fmtPending}</div><div class="rc-label">&#9888; Formatos pendientes RH</div></div>`;
   cards.innerHTML=cardsHtml;
 
+  // weekly breakdown
+  if(rows.length){
+    const weekMap={};
+    rows.forEach(({dateKey,incId})=>{
+      const d=localDate(dateKey);
+      // ISO week: Monday-based
+      const tmp=new Date(d);tmp.setHours(0,0,0,0);
+      tmp.setDate(tmp.getDate()+4-(tmp.getDay()||7));
+      const yr=tmp.getFullYear();
+      const wn=Math.ceil((((tmp-new Date(yr,0,1))/86400000)+1)/7);
+      const wk=`${yr}-S${String(wn).padStart(2,"0")}`;
+      if(!weekMap[wk])weekMap[wk]={total:0,counts:{}};
+      weekMap[wk].total++;
+      weekMap[wk].counts[incId]=(weekMap[wk].counts[incId]||0)+1;
+    });
+    const weeks=Object.entries(weekMap).sort((a,b)=>a[0].localeCompare(b[0]));
+    const maxW=Math.max(...weeks.map(w=>w[1].total));
+    let wHtml=`<div class="card" style="padding:14px 18px;margin-bottom:0"><div style="font-size:.8rem;font-weight:700;color:#374151;margin-bottom:10px;">&#128197; Incidencias por Semana</div>`;
+    weeks.forEach(([wk,wd])=>{
+      const pct=maxW?Math.round(wd.total/maxW*100):0;
+      const badges=Object.entries(wd.counts).map(([id,c])=>{
+        const inc=INC_MAP[id];
+        return `<span style="background:${inc?inc.color:"#64748b"};color:white;padding:1px 6px;border-radius:4px;font-size:.7rem;font-weight:700;">${id}:${c}</span>`;
+      }).join(" ");
+      wHtml+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;">
+        <span style="min-width:72px;font-size:.75rem;font-weight:600;color:#475569;">${wk}</span>
+        <div style="flex:1;background:#f1f5f9;border-radius:6px;height:20px;overflow:hidden;">
+          <div style="width:${pct}%;background:#1e40af;height:100%;border-radius:6px;transition:width .4s;display:flex;align-items:center;padding:0 6px;">
+            <span style="font-size:.68rem;color:white;font-weight:700;white-space:nowrap;">${wd.total}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">${badges}</div>
+      </div>`;
+    });
+    wHtml+=`</div>`;
+    weeksEl.innerHTML=wHtml;
+  } else {
+    weeksEl.innerHTML="";
+  }
+
   if(!rows.length){
-    list.innerHTML=`<div class="rh-empty">Sin incidencias registradas en ${year}.</div>`;
+    list.innerHTML=`<div class="rh-empty">Sin incidencias en el per\u00edodo seleccionado.</div>`;
     return;
   }
 
-  // group by month
+  // timeline grouped by month
   let html=`<div class="rep-timeline">`;
   let lastMonth="";
   rows.forEach(({dateKey,incId,delivered})=>{
@@ -1411,9 +1559,55 @@ function renderReporte(){
 }
 
 document.getElementById("rep-filter-collab").addEventListener("change",renderReporte);
-document.getElementById("rep-filter-year").addEventListener("change",renderReporte);
+document.getElementById("rep-filter-year").addEventListener("change",()=>{
+  document.getElementById("rep-date-from").value="";
+  document.getElementById("rep-date-to").value="";
+  renderReporte();
+});
+document.getElementById("rep-date-from").addEventListener("change",renderReporte);
+document.getElementById("rep-date-to").addEventListener("change",renderReporte);
+document.getElementById("btn-rep-clear-range").addEventListener("click",()=>{
+  document.getElementById("rep-date-from").value="";
+  document.getElementById("rep-date-to").value="";
+  renderReporte();
+});
 
-document.getElementById("btn-export-rep").addEventListener("click",()=>{
+// PDF print del reporte
+document.getElementById("btn-print-rep").addEventListener("click",()=>{
+  const name=document.getElementById("rep-filter-collab").value;
+  if(!name){alert("Selecciona un colaborador primero");return;}
+  const year=document.getElementById("rep-filter-year").value;
+  const fromVal=document.getElementById("rep-date-from").value;
+  const toVal=document.getElementById("rep-date-to").value;
+  const cards=document.getElementById("rep-cards").innerHTML;
+  const weeks=document.getElementById("rep-weeks").innerHTML;
+  const list=document.getElementById("rep-list").innerHTML;
+  const appCfg=getAppConfig()||{};
+  const rango=fromVal||toVal?`${fromVal||"inicio"} al ${toVal||"fin"}`:`A\u00f1o ${year}`;
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte ${name}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',sans-serif;padding:24px;color:#1e293b;font-size:.85rem}
+    h1{font-size:1.2rem;font-weight:800;margin-bottom:4px}.sub{color:#64748b;font-size:.8rem;margin-bottom:16px}
+    .rep-card{display:inline-block;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 16px;margin:4px;text-align:center;min-width:110px}
+    .rc-count{font-size:1.5rem;font-weight:800}.rc-label{font-size:.72rem;color:#64748b;margin-top:2px}
+    .rep-month-hdr{background:#0f172a;color:white;padding:5px 12px;font-weight:700;font-size:.82rem;margin-top:12px;border-radius:4px 4px 0 0}
+    .rep-row{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid #f1f5f9;font-size:.82rem}
+    .rep-inc-badge{padding:2px 8px;border-radius:4px;color:white;font-weight:700;font-size:.75rem}
+    .rep-date{font-weight:600;white-space:nowrap;min-width:160px}
+    .rep-fmt.pend{color:#f59e0b;font-size:.75rem}.rep-fmt.ok{color:#16a34a;font-size:.75rem}
+    .card{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
+    @media print{body{padding:12px}}
+  </style></head><body>
+  <h1>Reporte: ${esc(name)}</h1>
+  <div class="sub">${appCfg.lineName||"V4"} &mdash; ${appCfg.supervisor||""} &mdash; ${rango}</div>
+  <div style="margin-bottom:14px">${cards}</div>
+  ${weeks}
+  <div style="margin-top:14px">${list}</div>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  w.document.close();
+});
   const name=document.getElementById("rep-filter-collab").value;
   const year=parseInt(document.getElementById("rep-filter-year").value)||today.getFullYear();
   if(!name){alert("Selecciona un colaborador primero");return;}
