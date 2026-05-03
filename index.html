@@ -1114,7 +1114,7 @@ function setIncident(id){
     // limpiar formato al quitar incidencia
     if(data.formats[popDate]){delete data.formats[popDate][popCollab];if(!Object.keys(data.formats[popDate]).length)delete data.formats[popDate];}
   }
-  save(data);closePopup();renderCalendar();
+  save(data);closePopup();renderCalendar();applyCalSearch();
 }
 
 function toggleFormat(dateKey,collabName){
@@ -1130,7 +1130,7 @@ function toggleFormat(dateKey,collabName){
     data.formats[dateKey][collabName]=true;
     showToast("Formato marcado como entregado a RH \u2713");
   }
-  save(data);closePopup();renderCalendar();
+  save(data);closePopup();renderCalendar();applyCalSearch();
 }
 document.getElementById("pop-overlay").addEventListener("click",closePopup);
 
