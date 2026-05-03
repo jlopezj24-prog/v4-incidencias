@@ -751,8 +751,16 @@
   <div class="modal-box wide">
     <h3>&#9729; Sincronización en la Nube</h3>
 
+    <!-- CÓDIGO ACTUAL (visible solo si ya hay nube configurada) -->
+    <div id="cloud-current-code" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+      <div style="font-weight:700;color:#166534;font-size:.88rem;margin-bottom:4px;">&#10003; Conectado a tu espacio en la nube</div>
+      <div style="font-size:.75rem;color:#166534;margin-bottom:8px;">Guarda este c&oacute;digo para acceder desde otro dispositivo o celular:</div>
+      <div id="cloud-code-display" style="background:white;border:1px dashed #86efac;border-radius:6px;padding:8px 10px;font-family:monospace;font-size:.8rem;font-weight:700;color:#1e40af;word-break:break-all;margin-bottom:8px;"></div>
+      <button id="btn-copy-current-code" style="background:#dcfce7;color:#166534;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:.78rem;font-weight:600;">&#128203; Copiar c&oacute;digo</button>
+    </div>
+
     <!-- OPCIÓN A: Crear espacio automático -->
-    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+    <div id="cloud-create-section" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-weight:700;color:#166534;font-size:.88rem;margin-bottom:6px;">&#10024; Opción fácil — Crear mi espacio automáticamente</div>
       <div style="font-size:.78rem;color:#166534;margin-bottom:10px;">La app crea tu propio bin en la nube y migra tus datos actuales. No perderás nada.</div>
       <button id="btn-cloud-autocreate" style="background:#16a34a;color:white;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;width:100%;">&#128640; Crear mi espacio en la nube</button>
@@ -2541,8 +2549,22 @@ async function syncFromCloud(showResult, forceLoad){
 /* Modal de configuración */
 function openCloudModal(){
   const cfg=getCloudConfig();
+  const hasOwnBin=cfg.binId&&cfg.binId!==DEFAULT_BIN_ID;
+  // Mostrar código actual si ya tiene bin propio
+  const codeSection=document.getElementById("cloud-current-code");
+  const createSection=document.getElementById("cloud-create-section");
+  if(hasOwnBin){
+    const lineCode="V4."+btoa(cfg.binId);
+    document.getElementById("cloud-code-display").textContent=lineCode;
+    codeSection.style.display="block";
+    createSection.style.display="none"; // ya tiene espacio, ocultar botón crear
+  } else {
+    codeSection.style.display="none";
+    createSection.style.display="block";
+  }
   document.getElementById("input-api-key").value=cfg.apiKey&&cfg.apiKey!==DEFAULT_API_KEY?cfg.apiKey:"";
-  document.getElementById("input-bin-id").value=cfg.binId&&cfg.binId!==DEFAULT_BIN_ID?cfg.binId:"";
+  document.getElementById("input-bin-id").value=hasOwnBin?cfg.binId:"";
+  document.getElementById("input-line-code").value="";
   document.getElementById("autocreate-result").style.display="none";
   document.getElementById("modal-cloud").classList.add("open");
 }
@@ -2551,6 +2573,11 @@ function closeCloudModal(){document.getElementById("modal-cloud").classList.remo
 document.getElementById("btn-sync-status").addEventListener("click",openCloudModal);
 document.getElementById("btn-cloud-cancel").addEventListener("click",closeCloudModal);
 document.getElementById("modal-cloud").addEventListener("click",e=>{if(e.target===document.getElementById("modal-cloud"))closeCloudModal();});
+
+document.getElementById("btn-copy-current-code").addEventListener("click",()=>{
+  const code=document.getElementById("cloud-code-display").textContent;
+  navigator.clipboard.writeText(code).then(()=>showToast("C\u00f3digo copiado \u2713"));
+});
 
 // AUTO-CREATE: crea bin propio y migra datos actuales sin tocar localStorage
 document.getElementById("btn-cloud-autocreate").addEventListener("click",async()=>{
