@@ -543,6 +543,7 @@
       <option value="delivered">&#10003; Entregados</option>
       <option value="all">Todos</option>
     </select>
+    <button id="btn-rh-pdf" style="margin-left:auto;padding:6px 14px;border-radius:8px;border:none;background:#6366f1;color:white;font-size:.82rem;font-weight:600;cursor:pointer;">&#128438; Exportar PDF</button>
   </div>
   <div class="card" id="rh-list"></div>
 </section>
@@ -556,7 +557,10 @@
       <button class="nav-btn" id="vista-next">&#8250;</button>
       <button class="today-btn" id="vista-today">Hoy</button>
     </div>
-    <button class="vista-fullscreen-btn" id="btn-vista-fullscreen">&#9974; Pantalla completa</button>
+    <div style="display:flex;gap:8px;margin-left:auto;">
+      <button id="btn-vista-pdf" style="padding:6px 14px;border-radius:8px;border:none;background:#6366f1;color:white;font-size:.82rem;font-weight:600;cursor:pointer;">&#128438; PDF</button>
+      <button class="vista-fullscreen-btn" id="btn-vista-fullscreen">&#9974; Pantalla completa</button>
+    </div>
   </div>
   <div class="vcal-wrap"><table class="vcal" id="vcal-table"></table></div>
 </section>
@@ -1734,6 +1738,51 @@ document.getElementById("btn-vista-fullscreen").addEventListener("click",()=>{
   document.getElementById("btn-vista-fullscreen").innerHTML=panel.classList.contains("fullscreen")?"&#10005; Salir de pantalla completa":"&#9974; Pantalla completa";
 });
 
+document.getElementById("btn-vista-pdf").addEventListener("click",()=>{
+  const appCfg=getAppConfig()||{};
+  const tableHTML=document.getElementById("vcal-table").outerHTML;
+  const mesLabel=`${MONTHS[vistaMonth]} ${vistaYear}`;
+  // Build legend
+  const legendHTML=INCIDENTS.map(i=>`<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;font-size:.72rem;"><span style="width:10px;height:10px;border-radius:3px;background:${i.color};display:inline-block;"></span>${i.id} ${i.name}</span>`).join("");
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Vista Mensual ${mesLabel}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;padding:20px;color:#1e293b;font-size:.78rem}
+    h1{font-size:1.1rem;font-weight:800;margin-bottom:2px}
+    .sub{color:#64748b;font-size:.74rem;margin-bottom:10px}
+    .legend{margin-bottom:12px;padding:8px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;}
+    .vcal{border-collapse:collapse;width:100%;font-size:.72rem}
+    .vcal th{background:#0f172a;color:white;padding:6px 4px;text-align:center;font-weight:600}
+    .wk-th{background:#1e3a5f!important;min-width:54px;font-size:.68rem}
+    .wk-cell{background:#f8fafc;padding:4px;text-align:center;border:1px solid #e2e8f0;vertical-align:middle}
+    .wk-label{display:block;font-size:.65rem;font-weight:700;color:#374151}
+    .wk-shift{display:block;font-size:.6rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:2px}
+    .wk-shift.dia{background:#dbeafe;color:#1e40af}
+    .wk-shift.noche{background:#1e293b;color:#e2e8f0}
+    .wk-shift.mixto{background:#fef3c7;color:#92400e}
+    .vcal td{border:1px solid #e2e8f0;padding:4px;vertical-align:top;min-width:70px;min-height:60px}
+    .vc-empty{background:#f8fafc}
+    .vc-rest{background:#f1f5f9}
+    .vc-holiday{background:#faf5ff}
+    .vc-today{outline:2px solid #f59e0b;outline-offset:-2px}
+    .vc-day-num{font-size:.75rem;font-weight:700;display:block;margin-bottom:3px}
+    .vc-day-num.rest{color:#94a3b8}
+    .vc-chip{display:flex;align-items:center;gap:3px;margin-bottom:2px;border-radius:4px;padding:1px 4px;font-size:.64rem}
+    .vc-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .vc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;font-size:.64rem}
+    @media print{body{padding:10px}@page{size:landscape;margin:10mm}}
+  </style></head><body>
+  <h1>&#128197; Vista Mensual &mdash; ${mesLabel}</h1>
+  <div class="sub">${appCfg.lineName||"Control de Incidencias"} ${appCfg.supervisor?"&mdash; "+appCfg.supervisor:""} &mdash; Impreso: ${new Date().toLocaleDateString("es-MX")}</div>
+  <div class="legend"><b style="font-size:.72rem">Leyenda:</b> ${legendHTML}</div>
+  ${tableHTML}
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  w.document.close();
+});
+
 /* ═══════════════════════════════════════════
    RH PENDIENTES
 ═══════════════════════════════════════════ */
@@ -1861,6 +1910,88 @@ document.getElementById("rh-filter-month").addEventListener("change",()=>{popula
 document.getElementById("rh-filter-day").addEventListener("change",renderRhPending);
 document.getElementById("rh-filter-inc").addEventListener("change",renderRhPending);
 document.getElementById("rh-filter-status").addEventListener("change",renderRhPending);
+
+document.getElementById("btn-rh-pdf").addEventListener("click",()=>{
+  const data=load();
+  const filterMonth=document.getElementById("rh-filter-month").value;
+  const filterDay=document.getElementById("rh-filter-day").value;
+  const filterInc=document.getElementById("rh-filter-inc").value;
+  const filterStatus=document.getElementById("rh-filter-status").value;
+  const appCfg=getAppConfig()||{};
+
+  const items=[];
+  Object.entries(data.incidents).forEach(([dateKey,dayData])=>{
+    Object.entries(dayData).forEach(([collabName,incId])=>{
+      if(!FORMAT_REQUIRED.has(incId))return;
+      const delivered=!!(data.formats&&data.formats[dateKey]&&data.formats[dateKey][collabName]);
+      items.push({dateKey,collabName,incId,delivered});
+    });
+  });
+  items.sort((a,b)=>a.dateKey.localeCompare(b.dateKey));
+  const filtered=items.filter(it=>{
+    if(filterDay&&it.dateKey!==filterDay)return false;
+    else if(!filterDay&&filterMonth&&!it.dateKey.startsWith(filterMonth))return false;
+    if(filterInc&&it.incId!==filterInc)return false;
+    if(filterStatus==="pending"&&it.delivered)return false;
+    if(filterStatus==="delivered"&&!it.delivered)return false;
+    return true;
+  });
+
+  if(!filtered.length){alert("No hay registros para exportar con el filtro actual.");return;}
+
+  const inc2color={VAC:"#16A34A",SAN:"#EF4444",PSG:"#EAB308",FJ:"#38BDF8"};
+  const statusLabel=filterStatus==="pending"?"Pendientes":filterStatus==="delivered"?"Entregados":"Todos";
+  const incLabel=filterInc||"Todos los tipos";
+  const mesLabel=filterDay?filterDay:(filterMonth?filterMonth:"Todo el a\u00f1o");
+  const pending=filtered.filter(i=>!i.delivered).length;
+  const delivered=filtered.filter(i=>i.delivered).length;
+
+  const rows=filtered.map(it=>{
+    const [y,m,d]=it.dateKey.split("-");
+    const dateStr=`${parseInt(d)} ${MONTHS[parseInt(m)-1]} ${y}`;
+    const clr=inc2color[it.incId]||"#64748b";
+    const estado=it.delivered
+      ?`<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:700;">&#10003; Entregado</span>`
+      :`<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:700;">&#9888; Pendiente</span>`;
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-weight:600;">${esc(it.collabName)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;">${dateStr}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:center;"><span style="background:${clr};color:white;padding:2px 8px;border-radius:4px;font-size:.78rem;font-weight:700;">${it.incId}</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:center;">${estado}</td>
+    </tr>`;
+  }).join("");
+
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Formatos RH</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;padding:28px;color:#1e293b;font-size:.85rem}
+    h1{font-size:1.15rem;font-weight:800;margin-bottom:4px}
+    .sub{color:#64748b;font-size:.78rem;margin-bottom:18px}
+    .summary{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+    .sc{border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 18px;text-align:center;min-width:100px}
+    .sc .n{font-size:1.4rem;font-weight:800}.sc .l{font-size:.72rem;color:#64748b;margin-top:2px}
+    table{width:100%;border-collapse:collapse;font-size:.82rem}
+    th{background:#0f172a;color:white;padding:9px 12px;text-align:left;font-weight:600}
+    tr:nth-child(even) td{background:#f8fafc}
+    @media print{body{padding:14px}}
+  </style></head><body>
+  <h1>&#128203; Formatos para entrega a RH</h1>
+  <div class="sub">${appCfg.lineName||""} ${appCfg.supervisor?"&mdash; "+appCfg.supervisor:""} &mdash; Per&iacute;odo: ${mesLabel} &mdash; Tipo: ${incLabel} &mdash; Estado: ${statusLabel} &mdash; Impreso: ${new Date().toLocaleDateString("es-MX")}</div>
+  <div class="summary">
+    <div class="sc"><div class="n" style="color:#1e40af">${filtered.length}</div><div class="l">Total</div></div>
+    <div class="sc"><div class="n" style="color:#f59e0b">${pending}</div><div class="l">Pendientes</div></div>
+    <div class="sc"><div class="n" style="color:#16a34a">${delivered}</div><div class="l">Entregados</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Colaborador</th><th>Fecha</th><th style="text-align:center">Tipo</th><th style="text-align:center">Estado</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  w.document.close();
+});
 
 /* ═══════════════════════════════════════════
    PLANNING VIEW
