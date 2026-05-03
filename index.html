@@ -762,7 +762,8 @@
     <!-- OPCIÓN A: Crear espacio automático -->
     <div id="cloud-create-section" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-weight:700;color:#166534;font-size:.88rem;margin-bottom:6px;">&#10024; Opción fácil — Crear mi espacio automáticamente</div>
-      <div style="font-size:.78rem;color:#166534;margin-bottom:10px;">La app crea tu propio bin en la nube y migra tus datos actuales. No perderás nada.</div>
+      <div style="font-size:.78rem;color:#166534;margin-bottom:10px;">La app crea tu propio bin y migra tus datos actuales. No perder&aacute;s nada.</div>
+      <input type="password" id="input-api-key-create" autocomplete="off" style="display:none;" />
       <button id="btn-cloud-autocreate" style="background:#16a34a;color:white;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;width:100%;">&#128640; Crear mi espacio en la nube</button>
       <div id="autocreate-result" style="display:none;margin-top:10px;"></div>
     </div>
@@ -2565,6 +2566,7 @@ function openCloudModal(){
   document.getElementById("input-api-key").value=cfg.apiKey&&cfg.apiKey!==DEFAULT_API_KEY?cfg.apiKey:"";
   document.getElementById("input-bin-id").value=hasOwnBin?cfg.binId:"";
   document.getElementById("input-line-code").value="";
+  document.getElementById("input-api-key-create").value=DEFAULT_API_KEY; // pre-rellenar Master Key
   document.getElementById("autocreate-result").style.display="none";
   document.getElementById("modal-cloud").classList.add("open");
 }
@@ -2583,39 +2585,46 @@ document.getElementById("btn-copy-current-code").addEventListener("click",()=>{
 document.getElementById("btn-cloud-autocreate").addEventListener("click",async()=>{
   const btn=document.getElementById("btn-cloud-autocreate");
   const resultEl=document.getElementById("autocreate-result");
+  const masterKey=document.getElementById("input-api-key-create").value.trim();
+  if(!masterKey){
+    document.getElementById("input-api-key-create").focus();
+    document.getElementById("input-api-key-create").style.borderColor="#ef4444";
+    resultEl.style.display="block";
+    resultEl.innerHTML=`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:.8rem;color:#991b1b;">&#9888; Ingresa tu Master Key de jsonbin.io primero</div>`;
+    return;
+  }
+  document.getElementById("input-api-key-create").style.borderColor="#86efac";
   btn.textContent="Creando espacio...";btn.disabled=true;
   resultEl.style.display="none";
   try{
-    // 1. Tomar datos locales actuales (NO los borramos)
     const currentData=load();
     currentData._ts=Date.now();
-    // 2. Crear nuevo bin con los datos actuales
     const lineName=(getAppConfig()||{}).lineName||"Mi Linea";
     const resp=await fetch(JSONBIN,{
       method:"POST",
-      headers:{"Content-Type":"application/json","X-Master-Key":DEFAULT_API_KEY,"X-Bin-Name":lineName,"X-Bin-Private":"false"},
+      headers:{"Content-Type":"application/json","X-Master-Key":masterKey,"X-Bin-Name":lineName,"X-Bin-Private":"false"},
       body:JSON.stringify(currentData)
     });
     if(!resp.ok){const t=await resp.text();throw new Error(t);}
     const json=await resp.json();
     const newBinId=json.metadata.id;
-    // 3. Guardar nuevas credenciales SIN tocar datos locales
-    localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey:DEFAULT_API_KEY,binId:newBinId}));
-    // 4. Actualizar config de app con nuevo binId
+    // Guardar con la Master Key del usuario
+    localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey:masterKey,binId:newBinId}));
     const appCfg=getAppConfig()||{};
     appCfg.binId=newBinId;
     localStorage.setItem(APP_CONFIG_KEY,JSON.stringify(appCfg));
-    // 5. Mostrar código para compartir/guardar
     const lineCode="V4."+btoa(newBinId);
     resultEl.style.display="block";
     resultEl.innerHTML=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;font-size:.8rem;">
       <div style="font-weight:700;color:#166534;margin-bottom:6px;">&#10003; Espacio creado exitosamente</div>
-      <div style="color:#166534;margin-bottom:8px;">Tus datos han sido migrados a tu propio bin. Guarda este c&oacute;digo para acceder desde otro dispositivo:</div>
+      <div style="color:#166534;margin-bottom:8px;">Tus datos han sido migrados. Guarda este c&oacute;digo para acceder desde otro dispositivo:</div>
       <div style="background:white;border:1px dashed #86efac;border-radius:6px;padding:8px;font-family:monospace;font-size:.82rem;font-weight:700;color:#1e40af;word-break:break-all;margin-bottom:8px;" id="new-line-code">${lineCode}</div>
       <button onclick="navigator.clipboard.writeText('${lineCode}').then(()=>showToast('C\u00f3digo copiado'))" style="background:#dcfce7;color:#166534;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:.78rem;font-weight:600;">&#128203; Copiar c&oacute;digo</button>
     </div>`;
     setSyncUI("ok","Sincronizado \u2713");
     btn.textContent="&#10003; Espacio creado";
+    // Refrescar modal para mostrar código en la sección verde superior
+    setTimeout(openCloudModal,800);
   }catch(e){
     resultEl.style.display="block";
     resultEl.innerHTML=`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:.8rem;color:#991b1b;">Error: ${e.message}</div>`;
