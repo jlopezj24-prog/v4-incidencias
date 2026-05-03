@@ -759,17 +759,19 @@
       <div id="autocreate-result" style="display:none;margin-top:10px;"></div>
     </div>
 
-    <div style="text-align:center;color:#94a3b8;font-size:.78rem;margin-bottom:14px;">— o ingresa tus credenciales manualmente —</div>
+    <div style="text-align:center;color:#94a3b8;font-size:.78rem;margin-bottom:14px;">— o conecta desde otro dispositivo con tu c&oacute;digo —</div>
 
-    <!-- OPCIÓN B: Manual -->
-    <div class="cloud-steps" style="margin-bottom:12px;">
-      <ol>
-        <li>Entra a <a href="https://jsonbin.io" target="_blank">jsonbin.io</a> y crea una cuenta gratis</li>
-        <li>Ve a <b>API Keys</b> y copia tu <b>Master Key</b></li>
-        <li>Crea un Bin nuevo y copia el <b>BIN ID</b></li>
-        <li>Pega ambos aquí abajo y guarda</li>
-      </ol>
+    <!-- OPCIÓN B: Código de línea -->
+    <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+      <div style="font-weight:700;color:#1e40af;font-size:.88rem;margin-bottom:6px;">&#128241; Conectar con mi C&oacute;digo de L&iacute;nea</div>
+      <div style="font-size:.78rem;color:#1e40af;margin-bottom:10px;">Pega aqu&iacute; el c&oacute;digo que generaste al crear tu espacio (empieza con <b>V4.</b>)</div>
+      <input type="text" id="input-line-code" placeholder="V4.NjlmNzBk..." autocomplete="off" style="width:100%;padding:9px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:.84rem;outline:none;margin-bottom:8px;" />
+      <button id="btn-cloud-code-save" style="background:#1e40af;color:white;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;width:100%;">&#128279; Conectar</button>
     </div>
+
+    <div style="text-align:center;color:#94a3b8;font-size:.78rem;margin-bottom:14px;">— o ingresa credenciales manualmente —</div>
+
+    <!-- OPCIÓN C: Manual avanzado -->
     <div class="field-group">
       <label class="field-label">Master Key (empieza con $2b$...)</label>
       <input type="password" id="input-api-key" placeholder="$2b$10$..." autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:.88rem;outline:none;" />
@@ -2606,6 +2608,29 @@ document.getElementById("btn-cloud-save").addEventListener("click",async()=>{
   btn.textContent="Guardar y Conectar";btn.disabled=false;
   if(result===true){closeCloudModal();}
   else if(result&&result.error){alert("\u274C Error al conectar:\n\n"+result.error+"\n\nVerifica que el BIN ID y la Master Key sean correctos.");}
+});
+
+// Conectar con Código de Línea (V4.xxx) — no necesita Master Key
+document.getElementById("btn-cloud-code-save").addEventListener("click",async()=>{
+  const raw=document.getElementById("input-line-code").value.trim();
+  if(!raw){alert("Pega tu C\u00f3digo de L\u00ednea primero");return;}
+  let binId="";
+  try{
+    if(raw.startsWith("V4.")){binId=atob(raw.slice(3));}
+    else{binId=raw;} // allow raw binId too
+    if(!binId)throw new Error("C\u00f3digo inv\u00e1lido");
+  }catch(e){alert("C\u00f3digo inv\u00e1lido. Aseg\u00farate de copiar el c\u00f3digo completo que empieza con V4.");return;}
+  const btn=document.getElementById("btn-cloud-code-save");
+  btn.textContent="Conectando...";btn.disabled=true;
+  localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey:DEFAULT_API_KEY,binId}));
+  const result=await syncFromCloud(true);
+  btn.textContent="\uD83D\uDD17 Conectar";btn.disabled=false;
+  if(result===true){
+    closeCloudModal();
+    showToast("Conectado a tu espacio en la nube \u2713");
+  }else if(result&&result.error){
+    alert("\u274C No se pudo conectar.\n\nVerifica que el c\u00f3digo sea correcto.\n\nError: "+result.error);
+  }
 });
 
 document.getElementById("btn-cloud-clear").addEventListener("click",()=>{
