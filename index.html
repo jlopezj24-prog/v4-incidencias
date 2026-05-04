@@ -557,10 +557,7 @@
       <button class="nav-btn" id="vista-next">&#8250;</button>
       <button class="today-btn" id="vista-today">Hoy</button>
     </div>
-    <div style="display:flex;gap:8px;margin-left:auto;">
-      <button id="btn-vista-pdf" style="padding:6px 14px;border-radius:8px;border:none;background:#6366f1;color:white;font-size:.82rem;font-weight:600;cursor:pointer;">&#128438; PDF</button>
-      <button class="vista-fullscreen-btn" id="btn-vista-fullscreen">&#9974; Pantalla completa</button>
-    </div>
+    <button class="vista-fullscreen-btn" id="btn-vista-fullscreen">&#9974; Pantalla completa</button>
   </div>
   <div class="vcal-wrap"><table class="vcal" id="vcal-table"></table></div>
 </section>
@@ -751,36 +748,25 @@
   <div class="modal-box wide">
     <h3>&#9729; Sincronización en la Nube</h3>
 
-    <!-- CÓDIGO ACTUAL (visible solo si ya hay nube configurada) -->
-    <div id="cloud-current-code" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
-      <div style="font-weight:700;color:#166534;font-size:.88rem;margin-bottom:4px;">&#10003; Conectado a tu espacio en la nube</div>
-      <div style="font-size:.75rem;color:#166534;margin-bottom:8px;">Guarda este c&oacute;digo para acceder desde otro dispositivo o celular:</div>
-      <div id="cloud-code-display" style="background:white;border:1px dashed #86efac;border-radius:6px;padding:8px 10px;font-family:monospace;font-size:.8rem;font-weight:700;color:#1e40af;word-break:break-all;margin-bottom:8px;"></div>
-      <button id="btn-copy-current-code" style="background:#dcfce7;color:#166534;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:.78rem;font-weight:600;">&#128203; Copiar c&oacute;digo</button>
-    </div>
-
     <!-- OPCIÓN A: Crear espacio automático -->
-    <div id="cloud-create-section" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-weight:700;color:#166534;font-size:.88rem;margin-bottom:6px;">&#10024; Opción fácil — Crear mi espacio automáticamente</div>
-      <div style="font-size:.78rem;color:#166534;margin-bottom:10px;">La app crea tu propio bin y migra tus datos actuales. No perder&aacute;s nada.</div>
-      <input type="password" id="input-api-key-create" autocomplete="off" style="display:none;" />
+      <div style="font-size:.78rem;color:#166534;margin-bottom:10px;">La app crea tu propio bin en la nube y migra tus datos actuales. No perderás nada.</div>
       <button id="btn-cloud-autocreate" style="background:#16a34a;color:white;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;width:100%;">&#128640; Crear mi espacio en la nube</button>
       <div id="autocreate-result" style="display:none;margin-top:10px;"></div>
     </div>
 
-    <div style="text-align:center;color:#94a3b8;font-size:.78rem;margin-bottom:14px;">— o conecta desde otro dispositivo con tu c&oacute;digo —</div>
+    <div style="text-align:center;color:#94a3b8;font-size:.78rem;margin-bottom:14px;">— o ingresa tus credenciales manualmente —</div>
 
-    <!-- OPCIÓN B: Código de línea -->
-    <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
-      <div style="font-weight:700;color:#1e40af;font-size:.88rem;margin-bottom:6px;">&#128241; Conectar con mi C&oacute;digo de L&iacute;nea</div>
-      <div style="font-size:.78rem;color:#1e40af;margin-bottom:10px;">Pega aqu&iacute; el c&oacute;digo que generaste al crear tu espacio (empieza con <b>V4.</b>)</div>
-      <input type="text" id="input-line-code" placeholder="V4.NjlmNzBk..." autocomplete="off" style="width:100%;padding:9px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:.84rem;outline:none;margin-bottom:8px;" />
-      <button id="btn-cloud-code-save" style="background:#1e40af;color:white;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;width:100%;">&#128279; Conectar</button>
+    <!-- OPCIÓN B: Manual -->
+    <div class="cloud-steps" style="margin-bottom:12px;">
+      <ol>
+        <li>Entra a <a href="https://jsonbin.io" target="_blank">jsonbin.io</a> y crea una cuenta gratis</li>
+        <li>Ve a <b>API Keys</b> y copia tu <b>Master Key</b></li>
+        <li>Crea un Bin nuevo y copia el <b>BIN ID</b></li>
+        <li>Pega ambos aquí abajo y guarda</li>
+      </ol>
     </div>
-
-    <div style="text-align:center;color:#94a3b8;font-size:.78rem;margin-bottom:14px;">— o ingresa credenciales manualmente —</div>
-
-    <!-- OPCIÓN C: Manual avanzado -->
     <div class="field-group">
       <label class="field-label">Master Key (empieza con $2b$...)</label>
       <input type="password" id="input-api-key" placeholder="$2b$10$..." autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:.88rem;outline:none;" />
@@ -1115,7 +1101,7 @@ function setIncident(id){
     // limpiar formato al quitar incidencia
     if(data.formats[popDate]){delete data.formats[popDate][popCollab];if(!Object.keys(data.formats[popDate]).length)delete data.formats[popDate];}
   }
-  save(data);closePopup();renderCalendar();applyCalSearch();
+  save(data);closePopup();renderCalendar();
 }
 
 function toggleFormat(dateKey,collabName){
@@ -1131,7 +1117,7 @@ function toggleFormat(dateKey,collabName){
     data.formats[dateKey][collabName]=true;
     showToast("Formato marcado como entregado a RH \u2713");
   }
-  save(data);closePopup();renderCalendar();applyCalSearch();
+  save(data);closePopup();renderCalendar();
 }
 document.getElementById("pop-overlay").addEventListener("click",closePopup);
 
@@ -1747,51 +1733,6 @@ document.getElementById("btn-vista-fullscreen").addEventListener("click",()=>{
   const panel=document.getElementById("panel-vista");
   panel.classList.toggle("fullscreen");
   document.getElementById("btn-vista-fullscreen").innerHTML=panel.classList.contains("fullscreen")?"&#10005; Salir de pantalla completa":"&#9974; Pantalla completa";
-});
-
-document.getElementById("btn-vista-pdf").addEventListener("click",()=>{
-  const appCfg=getAppConfig()||{};
-  const tableHTML=document.getElementById("vcal-table").outerHTML;
-  const mesLabel=`${MONTHS[vistaMonth]} ${vistaYear}`;
-  // Build legend
-  const legendHTML=INCIDENTS.map(i=>`<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;font-size:.72rem;"><span style="width:10px;height:10px;border-radius:3px;background:${i.color};display:inline-block;"></span>${i.id} ${i.name}</span>`).join("");
-  const w=window.open("","_blank");
-  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-  <title>Vista Mensual ${mesLabel}</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',sans-serif;padding:20px;color:#1e293b;font-size:.78rem}
-    h1{font-size:1.1rem;font-weight:800;margin-bottom:2px}
-    .sub{color:#64748b;font-size:.74rem;margin-bottom:10px}
-    .legend{margin-bottom:12px;padding:8px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;}
-    .vcal{border-collapse:collapse;width:100%;font-size:.72rem}
-    .vcal th{background:#0f172a;color:white;padding:6px 4px;text-align:center;font-weight:600}
-    .wk-th{background:#1e3a5f!important;min-width:54px;font-size:.68rem}
-    .wk-cell{background:#f8fafc;padding:4px;text-align:center;border:1px solid #e2e8f0;vertical-align:middle}
-    .wk-label{display:block;font-size:.65rem;font-weight:700;color:#374151}
-    .wk-shift{display:block;font-size:.6rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:2px}
-    .wk-shift.dia{background:#dbeafe;color:#1e40af}
-    .wk-shift.noche{background:#1e293b;color:#e2e8f0}
-    .wk-shift.mixto{background:#fef3c7;color:#92400e}
-    .vcal td{border:1px solid #e2e8f0;padding:4px;vertical-align:top;min-width:70px;min-height:60px}
-    .vc-empty{background:#f8fafc}
-    .vc-rest{background:#f1f5f9}
-    .vc-holiday{background:#faf5ff}
-    .vc-today{outline:2px solid #f59e0b;outline-offset:-2px}
-    .vc-day-num{font-size:.75rem;font-weight:700;display:block;margin-bottom:3px}
-    .vc-day-num.rest{color:#94a3b8}
-    .vc-chip{display:flex;align-items:center;gap:3px;margin-bottom:2px;border-radius:4px;padding:1px 4px;font-size:.64rem}
-    .vc-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-    .vc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;font-size:.64rem}
-    @media print{body{padding:10px}@page{size:landscape;margin:10mm}}
-  </style></head><body>
-  <h1>&#128197; Vista Mensual &mdash; ${mesLabel}</h1>
-  <div class="sub">${appCfg.lineName||"Control de Incidencias"} ${appCfg.supervisor?"&mdash; "+appCfg.supervisor:""} &mdash; Impreso: ${new Date().toLocaleDateString("es-MX")}</div>
-  <div class="legend"><b style="font-size:.72rem">Leyenda:</b> ${legendHTML}</div>
-  ${tableHTML}
-  <script>window.onload=()=>{window.print();}<\/script>
-  </body></html>`);
-  w.document.close();
 });
 
 /* ═══════════════════════════════════════════
@@ -2550,23 +2491,8 @@ async function syncFromCloud(showResult, forceLoad){
 /* Modal de configuración */
 function openCloudModal(){
   const cfg=getCloudConfig();
-  const hasOwnBin=cfg.binId&&cfg.binId!==DEFAULT_BIN_ID;
-  // Mostrar código actual si ya tiene bin propio
-  const codeSection=document.getElementById("cloud-current-code");
-  const createSection=document.getElementById("cloud-create-section");
-  if(hasOwnBin){
-    const lineCode="V4."+btoa(cfg.binId);
-    document.getElementById("cloud-code-display").textContent=lineCode;
-    codeSection.style.display="block";
-    createSection.style.display="none"; // ya tiene espacio, ocultar botón crear
-  } else {
-    codeSection.style.display="none";
-    createSection.style.display="block";
-  }
   document.getElementById("input-api-key").value=cfg.apiKey&&cfg.apiKey!==DEFAULT_API_KEY?cfg.apiKey:"";
-  document.getElementById("input-bin-id").value=hasOwnBin?cfg.binId:"";
-  document.getElementById("input-line-code").value="";
-  document.getElementById("input-api-key-create").value=DEFAULT_API_KEY; // pre-rellenar Master Key
+  document.getElementById("input-bin-id").value=cfg.binId&&cfg.binId!==DEFAULT_BIN_ID?cfg.binId:"";
   document.getElementById("autocreate-result").style.display="none";
   document.getElementById("modal-cloud").classList.add("open");
 }
@@ -2576,55 +2502,43 @@ document.getElementById("btn-sync-status").addEventListener("click",openCloudMod
 document.getElementById("btn-cloud-cancel").addEventListener("click",closeCloudModal);
 document.getElementById("modal-cloud").addEventListener("click",e=>{if(e.target===document.getElementById("modal-cloud"))closeCloudModal();});
 
-document.getElementById("btn-copy-current-code").addEventListener("click",()=>{
-  const code=document.getElementById("cloud-code-display").textContent;
-  navigator.clipboard.writeText(code).then(()=>showToast("C\u00f3digo copiado \u2713"));
-});
-
 // AUTO-CREATE: crea bin propio y migra datos actuales sin tocar localStorage
 document.getElementById("btn-cloud-autocreate").addEventListener("click",async()=>{
   const btn=document.getElementById("btn-cloud-autocreate");
   const resultEl=document.getElementById("autocreate-result");
-  const masterKey=document.getElementById("input-api-key-create").value.trim();
-  if(!masterKey){
-    document.getElementById("input-api-key-create").focus();
-    document.getElementById("input-api-key-create").style.borderColor="#ef4444";
-    resultEl.style.display="block";
-    resultEl.innerHTML=`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:.8rem;color:#991b1b;">&#9888; Ingresa tu Master Key de jsonbin.io primero</div>`;
-    return;
-  }
-  document.getElementById("input-api-key-create").style.borderColor="#86efac";
   btn.textContent="Creando espacio...";btn.disabled=true;
   resultEl.style.display="none";
   try{
+    // 1. Tomar datos locales actuales (NO los borramos)
     const currentData=load();
     currentData._ts=Date.now();
+    // 2. Crear nuevo bin con los datos actuales
     const lineName=(getAppConfig()||{}).lineName||"Mi Linea";
     const resp=await fetch(JSONBIN,{
       method:"POST",
-      headers:{"Content-Type":"application/json","X-Master-Key":masterKey,"X-Bin-Name":lineName,"X-Bin-Private":"false"},
+      headers:{"Content-Type":"application/json","X-Master-Key":DEFAULT_API_KEY,"X-Bin-Name":lineName,"X-Bin-Private":"false"},
       body:JSON.stringify(currentData)
     });
     if(!resp.ok){const t=await resp.text();throw new Error(t);}
     const json=await resp.json();
     const newBinId=json.metadata.id;
-    // Guardar con la Master Key del usuario
-    localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey:masterKey,binId:newBinId}));
+    // 3. Guardar nuevas credenciales SIN tocar datos locales
+    localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey:DEFAULT_API_KEY,binId:newBinId}));
+    // 4. Actualizar config de app con nuevo binId
     const appCfg=getAppConfig()||{};
     appCfg.binId=newBinId;
     localStorage.setItem(APP_CONFIG_KEY,JSON.stringify(appCfg));
+    // 5. Mostrar código para compartir/guardar
     const lineCode="V4."+btoa(newBinId);
     resultEl.style.display="block";
     resultEl.innerHTML=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;font-size:.8rem;">
       <div style="font-weight:700;color:#166534;margin-bottom:6px;">&#10003; Espacio creado exitosamente</div>
-      <div style="color:#166534;margin-bottom:8px;">Tus datos han sido migrados. Guarda este c&oacute;digo para acceder desde otro dispositivo:</div>
+      <div style="color:#166534;margin-bottom:8px;">Tus datos han sido migrados a tu propio bin. Guarda este c&oacute;digo para acceder desde otro dispositivo:</div>
       <div style="background:white;border:1px dashed #86efac;border-radius:6px;padding:8px;font-family:monospace;font-size:.82rem;font-weight:700;color:#1e40af;word-break:break-all;margin-bottom:8px;" id="new-line-code">${lineCode}</div>
       <button onclick="navigator.clipboard.writeText('${lineCode}').then(()=>showToast('C\u00f3digo copiado'))" style="background:#dcfce7;color:#166534;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:.78rem;font-weight:600;">&#128203; Copiar c&oacute;digo</button>
     </div>`;
     setSyncUI("ok","Sincronizado \u2713");
     btn.textContent="&#10003; Espacio creado";
-    // Refrescar modal para mostrar código en la sección verde superior
-    setTimeout(openCloudModal,800);
   }catch(e){
     resultEl.style.display="block";
     resultEl.innerHTML=`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:.8rem;color:#991b1b;">Error: ${e.message}</div>`;
@@ -2644,29 +2558,6 @@ document.getElementById("btn-cloud-save").addEventListener("click",async()=>{
   btn.textContent="Guardar y Conectar";btn.disabled=false;
   if(result===true){closeCloudModal();}
   else if(result&&result.error){alert("\u274C Error al conectar:\n\n"+result.error+"\n\nVerifica que el BIN ID y la Master Key sean correctos.");}
-});
-
-// Conectar con Código de Línea (V4.xxx) — no necesita Master Key
-document.getElementById("btn-cloud-code-save").addEventListener("click",async()=>{
-  const raw=document.getElementById("input-line-code").value.trim();
-  if(!raw){alert("Pega tu C\u00f3digo de L\u00ednea primero");return;}
-  let binId="";
-  try{
-    if(raw.startsWith("V4.")){binId=atob(raw.slice(3));}
-    else{binId=raw;} // allow raw binId too
-    if(!binId)throw new Error("C\u00f3digo inv\u00e1lido");
-  }catch(e){alert("C\u00f3digo inv\u00e1lido. Aseg\u00farate de copiar el c\u00f3digo completo que empieza con V4.");return;}
-  const btn=document.getElementById("btn-cloud-code-save");
-  btn.textContent="Conectando...";btn.disabled=true;
-  localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey:DEFAULT_API_KEY,binId}));
-  const result=await syncFromCloud(true);
-  btn.textContent="\uD83D\uDD17 Conectar";btn.disabled=false;
-  if(result===true){
-    closeCloudModal();
-    showToast("Conectado a tu espacio en la nube \u2713");
-  }else if(result&&result.error){
-    alert("\u274C No se pudo conectar.\n\nVerifica que el c\u00f3digo sea correcto.\n\nError: "+result.error);
-  }
 });
 
 document.getElementById("btn-cloud-clear").addEventListener("click",()=>{
