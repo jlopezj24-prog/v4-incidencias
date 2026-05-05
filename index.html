@@ -91,6 +91,14 @@
     .coll-name-txt { flex:1; font-weight:500; margin:0 12px; }
     .btn-del { background:none; color:#ef4444; border:none; cursor:pointer; padding:5px 9px; border-radius:6px; font-size:.82rem; transition:background .14s; }
     .btn-del:hover { background:#fef2f2; }
+    .btn-edit-collab { background:#3b82f6;color:white;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.78rem;transition:background .14s; }
+    .btn-edit-collab:hover { background:#2563eb; }
+    .coll-let-row { background:#f5f3ff; }
+    .coll-let-row:hover { background:#ede9fe; }
+    .eq-section-header { padding:7px 16px 5px; font-size:.75rem; font-weight:700; color:#6d28d9; text-transform:uppercase; letter-spacing:.06em; background:#ede9fe; border-top:2px solid #c4b5fd; border-bottom:1px solid #ddd6fe; }
+    .let-cal-badge { display:inline-block;background:#7c3aed;color:white;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle; }
+    .eq-cal-badge { display:inline-block;background:#0284c7;color:white;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle; }
+    .cal-eq-sep td { background:#f1f5f9!important;font-size:.72rem;font-weight:700;color:#475569;padding:4px 8px;border-top:2px solid #cbd5e1; }
     .empty-msg { padding:36px; text-align:center; color:#94a3b8; font-size:.9rem; }
     /* MODAL */
     .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center; }
@@ -728,8 +736,19 @@
 <!-- MODAL agregar colaborador -->
 <div class="modal-overlay" id="modal-add">
   <div class="modal-box">
-    <h3>Agregar Colaborador</h3>
+    <h3 id="modal-add-title">Agregar Colaborador</h3>
+    <input type="hidden" id="edit-collab-idx" value="-1" />
     <input type="text" id="input-collab" placeholder="Nombre completo" autocomplete="off" />
+    <div style="display:flex;gap:10px;margin-top:10px;align-items:flex-end">
+      <div style="flex:1">
+        <label style="font-size:.8rem;color:#64748b;display:block;margin-bottom:4px">N&deg; de Equipo</label>
+        <input type="text" id="input-equipo" placeholder="Ej: 1, 2, 3..." autocomplete="off" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.9rem" />
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;padding-bottom:2px">
+        <input type="checkbox" id="input-islet" style="width:17px;height:17px;cursor:pointer;accent-color:#7c3aed" />
+        <label for="input-islet" style="font-size:.85rem;color:#374151;cursor:pointer;font-weight:600">Es LET</label>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" id="btn-modal-cancel">Cancelar</button>
       <button class="btn-primary" id="btn-modal-save">Guardar</button>
@@ -939,7 +958,15 @@ function getEasterDate(year){
 }
 
 function load(){
-  try{return JSON.parse(localStorage.getItem(STORE))||{collaborators:[],incidents:{},formats:{},_ts:0};}
+  try{
+    const d=JSON.parse(localStorage.getItem(STORE))||{collaborators:[],incidents:{},formats:{},_ts:0};
+    // Migrate old string-format collaborators to objects
+    if(d.collaborators&&d.collaborators.length&&typeof d.collaborators[0]==="string"){
+      d.collaborators=d.collaborators.map(n=>({name:n,equipo:"",isLET:false}));
+      localStorage.setItem(STORE,JSON.stringify(d));
+    }
+    return d;
+  }
   catch{return{collaborators:[],incidents:{},formats:{},_ts:0};}
 }
 function save(d){
@@ -948,6 +975,23 @@ function save(d){
   d._ts=Date.now();
   localStorage.setItem(STORE,JSON.stringify(d));
   syncToCloud(d);
+}
+
+/* Helpers para estructura de colaborador {name, equipo, isLET} */
+function cName(c){return typeof c==="string"?c:c.name||"";}
+function sortCollabs(arr){
+  return [...arr].sort((a,b)=>{
+    const eqA=typeof a==="string"?"":a.equipo||"";
+    const eqB=typeof b==="string"?"":b.equipo||"";
+    const numA=Number(eqA),numB=Number(eqB);
+    const eqCmp=(!eqA&&!eqB)?0:(!eqA)?1:(!eqB)?-1:((!isNaN(numA)&&!isNaN(numB))?(numA-numB):eqA.localeCompare(eqB));
+    if(eqCmp!==0)return eqCmp;
+    const letA=typeof a==="string"?false:!!a.isLET;
+    const letB=typeof b==="string"?false:!!b.isLET;
+    if(letA&&!letB)return -1;
+    if(!letA&&letB)return 1;
+    return cName(a).localeCompare(cName(b),"es");
+  });
 }
 
 const today=new Date();
@@ -1013,8 +1057,25 @@ function renderCalendar(){
   if(!collabs.length){
     body+=`<tr><td colspan="${total+1}" class="empty-msg">Sin colaboradores. Ve a la pesta\u00f1a <b>Colaboradores</b> para agregar.</td></tr>`;
   }else{
-    collabs.forEach((name,ci)=>{
-      body+=`<tr><td style="background:${ci%2?"#f8fafc":"#fff"}"><span class="collab-idx">${ci+1}</span><span class="collab-name" title="${esc(name)}">${esc(name)}</span></td>`;
+    const sorted=sortCollabs(collabs);
+    // remap sorted → original indices for data-ci
+    const sortedWithOrigIdx=sorted.map(c=>({c,origIdx:collabs.indexOf(c)}));
+    let lastEq=null;
+    sortedWithOrigIdx.forEach(({c,origIdx},si)=>{
+      const name=cName(c);
+      const equipo=typeof c==="string"?"":c.equipo||"";
+      const isLETflag=typeof c==="string"?false:!!c.isLET;
+      // separator row when equipo changes
+      if(equipo!==lastEq&&equipo){
+        body+=`<tr class="cal-eq-sep"><td colspan="${total+1}">Equipo ${esc(equipo)}</td></tr>`;
+      }else if(equipo!==lastEq&&!equipo&&lastEq){
+        body+=`<tr class="cal-eq-sep"><td colspan="${total+1}">Sin equipo asignado</td></tr>`;
+      }
+      lastEq=equipo;
+      const eqBadge=equipo?`<span class="eq-cal-badge">EQ${esc(equipo)}</span>`:"";
+      const letBadge=isLETflag?`<span class="let-cal-badge">LET</span>`:"";
+      const rowBg=isLETflag?"background:#f5f3ff":(si%2?"background:#f8fafc":"background:#fff");
+      body+=`<tr><td style="${rowBg}">${eqBadge}${letBadge}<span class="collab-name" title="${esc(name)}">${esc(name)}</span></td>`;
       for(let d=1;d<=total;d++){
         const dow=new Date(curYear,curMonth,d).getDay();
         const key=dk(curYear,curMonth+1,d);
@@ -1030,7 +1091,7 @@ function renderCalendar(){
         const needsFmt=incId&&FORMAT_REQUIRED.has(incId);
         const fmtDelivered=needsFmt&&data.formats&&data.formats[key]&&data.formats[key][name];
         const fmtBadge=needsFmt?(fmtDelivered?`<div class="fmt-badge delivered" title="Formato entregado a RH">&#10003;</div>`:`<div class="fmt-badge pending" title="Formato pendiente de entrega a RH">!</div>`):"";
-        body+=`<td class="ic-cell${extraClass?" "+extraClass:""}" style="${bg}" data-ci="${ci}" data-dk="${key}" title="${tip}">${fmtBadge}<div class="cc" style="${textColor}">${incId}</div></td>`;
+        body+=`<td class="ic-cell${extraClass?" "+extraClass:""}" style="${bg}" data-ci="${origIdx}" data-dk="${key}" title="${tip}">${fmtBadge}<div class="cc" style="${textColor}">${incId}</div></td>`;
       }
       body+="</tr>";
     });
@@ -1086,7 +1147,7 @@ function openPopup(e,cell){
   e.stopPropagation();closePopup();
   if(cell.classList.contains("descanso"))return; // día de descanso, no editable
   const data=load(),ci=parseInt(cell.dataset.ci);
-  popCollab=data.collaborators[ci];popDate=cell.dataset.dk;
+  popCollab=cName(data.collaborators[ci]);popDate=cell.dataset.dk;
   const cur=data.incidents[popDate]&&data.incidents[popDate][popCollab]||null;
   const [y,m,d]=popDate.split("-");
 
@@ -1157,11 +1218,12 @@ function renderSummary(){
   if(!collabs.length){
     html+=`<tr><td colspan="${INCIDENTS.length+2}" class="empty-msg">Sin colaboradores registrados.</td></tr>`;
   }else{
-    collabs.forEach(name=>{
-      const c=Object.fromEntries(INCIDENTS.map(i=>[i.id,0]));
-      Object.entries(data.incidents).forEach(([key,dd])=>{if(key.startsWith(String(year)+"-")&&dd[name])c[dd[name]]=(c[dd[name]]||0)+1;});
-      const total=Object.values(c).reduce((a,b)=>a+b,0);
-      html+=`<tr><td>${esc(name)}</td>`+INCIDENTS.map(i=>`<td>${c[i.id]?`<span class="sum-badge" style="background:${i.color}">${c[i.id]}</span>`:`<span style="color:#cbd5e1">\u2014</span>`}</td>`).join("")+`<td class="sum-total">${total||"\u2014"}</td></tr>`;
+    collabs.forEach(c=>{
+      const name=cName(c);
+      const cnt=Object.fromEntries(INCIDENTS.map(i=>[i.id,0]));
+      Object.entries(data.incidents).forEach(([key,dd])=>{if(key.startsWith(String(year)+"-")&&dd[name])cnt[dd[name]]=(cnt[dd[name]]||0)+1;});
+      const total=Object.values(cnt).reduce((a,b)=>a+b,0);
+      html+=`<tr><td>${esc(name)}</td>`+INCIDENTS.map(i=>`<td>${cnt[i.id]?`<span class="sum-badge" style="background:${i.color}">${cnt[i.id]}</span>`:`<span style="color:#cbd5e1">\u2014</span>`}</td>`).join("")+`<td class="sum-total">${total||"\u2014"}</td></tr>`;
     });
   }
   html+="</tbody>";
@@ -1173,10 +1235,11 @@ document.getElementById("btn-export-csv").addEventListener("click",()=>{
   const year=parseInt(document.getElementById("sum-year").value)||curYear;
   const data=load();
   const rows=[["Colaborador",...INCIDENTS.map(i=>i.name),"Total"]];
-  data.collaborators.forEach(name=>{
-    const c=Object.fromEntries(INCIDENTS.map(i=>[i.id,0]));
-    Object.entries(data.incidents).forEach(([key,dd])=>{if(key.startsWith(String(year)+"-")&&dd[name])c[dd[name]]=(c[dd[name]]||0)+1;});
-    rows.push([name,...INCIDENTS.map(i=>c[i.id]),Object.values(c).reduce((a,b)=>a+b,0)]);
+  data.collaborators.forEach(c=>{
+    const name=cName(c);
+    const cnt=Object.fromEntries(INCIDENTS.map(i=>[i.id,0]));
+    Object.entries(data.incidents).forEach(([key,dd])=>{if(key.startsWith(String(year)+"-")&&dd[name])cnt[dd[name]]=(cnt[dd[name]]||0)+1;});
+    rows.push([name,...INCIDENTS.map(i=>cnt[i.id]),Object.values(cnt).reduce((a,b)=>a+b,0)]);
   });
   const csv=rows.map(r=>r.join(",")).join("\n");
   const a=document.createElement("a");
@@ -1186,17 +1249,82 @@ document.getElementById("btn-export-csv").addEventListener("click",()=>{
 
 /* COLLABS */
 function renderCollabs(){
-  const data=load(),collabs=data.collaborators,list=document.getElementById("coll-list");
-  if(!collabs.length){list.innerHTML=`<div class="empty-msg">Sin colaboradores. Agrega el primero con el bot\u00f3n de arriba.</div>`;return;}
-  list.innerHTML=collabs.map((name,i)=>`<div class="coll-item"><span class="coll-num">${i+1}</span><span class="coll-name-txt">${esc(name)}</span><button class="btn-del" data-idx="${i}">\u2715 Eliminar</button></div>`).join("");
+  const data=load(),list=document.getElementById("coll-list");
+  const rawCollabs=data.collaborators;
+  if(!rawCollabs.length){list.innerHTML=`<div class="empty-msg">Sin colaboradores. Agrega el primero con el bot\u00f3n de arriba.</div>`;return;}
+
+  // Annotate with original index, then sort
+  const indexed=rawCollabs.map((c,i)=>({c,origIdx:i}));
+  indexed.sort((a,b)=>sortCollabs([a.c,b.c])[0]===a.c?-1:1);
+
+  // Group by equipo
+  const groups={};
+  const sinEquipo=[];
+  indexed.forEach(({c,origIdx})=>{
+    const eq=typeof c==="string"?"":c.equipo||"";
+    if(eq){groups[eq]=groups[eq]||[];groups[eq].push({c,origIdx});}
+    else sinEquipo.push({c,origIdx});
+  });
+
+  const eqKeys=Object.keys(groups).sort((a,b)=>{
+    const na=Number(a),nb=Number(b);
+    return(!isNaN(na)&&!isNaN(nb))?(na-nb):a.localeCompare(b);
+  });
+
+  function rowHtml(origIdx,name,isLETflag,rowNum){
+    const letBadge=isLETflag?`<span style="background:#7c3aed;color:white;font-size:.7rem;padding:2px 6px;border-radius:4px;font-weight:700;margin-right:6px">LET</span>`:"";
+    return `<div class="coll-item${isLETflag?" coll-let-row":""}">
+      <span class="coll-num">${rowNum}</span>
+      ${letBadge}<span class="coll-name-txt">${esc(name)}</span>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <button class="btn-edit-collab" data-idx="${origIdx}">\u270e Editar</button>
+        <button class="btn-del" data-idx="${origIdx}">\u2715 Eliminar</button>
+      </div>
+    </div>`;
+  }
+
+  let html="";
+  let globalNum=1;
+  eqKeys.forEach(eq=>{
+    html+=`<div class="eq-section-header">&#128101; Equipo ${esc(eq)}</div>`;
+    groups[eq].forEach(({c,origIdx})=>{
+      const name=cName(c);
+      const isLETflag=typeof c==="string"?false:!!c.isLET;
+      html+=rowHtml(origIdx,name,isLETflag,globalNum++);
+    });
+  });
+  if(sinEquipo.length){
+    if(eqKeys.length)html+=`<div class="eq-section-header" style="color:#64748b">Sin equipo asignado</div>`;
+    sinEquipo.forEach(({c,origIdx})=>{
+      html+=rowHtml(origIdx,cName(c),typeof c==="string"?false:!!c.isLET,globalNum++);
+    });
+  }
+
+  list.innerHTML=html;
   list.querySelectorAll(".btn-del").forEach(btn=>btn.addEventListener("click",()=>deleteCollab(parseInt(btn.dataset.idx))));
+  list.querySelectorAll(".btn-edit-collab").forEach(btn=>btn.addEventListener("click",()=>openEditCollab(parseInt(btn.dataset.idx))));
 }
 
 document.getElementById("btn-add-collab").addEventListener("click",()=>{
+  document.getElementById("modal-add-title").textContent="Agregar Colaborador";
+  document.getElementById("edit-collab-idx").value="-1";
   document.getElementById("input-collab").value="";
+  document.getElementById("input-equipo").value="";
+  document.getElementById("input-islet").checked=false;
   document.getElementById("modal-add").classList.add("open");
   setTimeout(()=>document.getElementById("input-collab").focus(),80);
 });
+
+function openEditCollab(idx){
+  const data=load(),c=data.collaborators[idx];
+  document.getElementById("modal-add-title").textContent="Editar Colaborador";
+  document.getElementById("edit-collab-idx").value=idx;
+  document.getElementById("input-collab").value=cName(c);
+  document.getElementById("input-equipo").value=(typeof c==="string"?"":c.equipo||"");
+  document.getElementById("input-islet").checked=(typeof c==="string"?false:!!c.isLET);
+  document.getElementById("modal-add").classList.add("open");
+  setTimeout(()=>document.getElementById("input-collab").focus(),80);
+}
 document.getElementById("btn-modal-cancel").addEventListener("click",closeModal);
 document.getElementById("modal-add").addEventListener("click",e=>{if(e.target===document.getElementById("modal-add"))closeModal();});
 document.getElementById("input-collab").addEventListener("keydown",e=>{if(e.key==="Enter")saveCollab();});
@@ -1207,15 +1335,30 @@ function closeModal(){document.getElementById("modal-add").classList.remove("ope
 function saveCollab(){
   const name=document.getElementById("input-collab").value.trim();
   if(!name)return;
+  const equipo=document.getElementById("input-equipo").value.trim();
+  const isLET=document.getElementById("input-islet").checked;
+  const editIdx=parseInt(document.getElementById("edit-collab-idx").value);
   const data=load();
-  if(data.collaborators.includes(name)){alert("Ya existe un colaborador con ese nombre.");return;}
-  data.collaborators.push(name);
-  data.collaborators.sort((a,b)=>a.localeCompare(b,"es"));
+  if(editIdx>=0){
+    // Modo edición
+    const oldName=cName(data.collaborators[editIdx]);
+    if(name!==oldName&&data.collaborators.some((c,i)=>i!==editIdx&&cName(c)===name)){alert("Ya existe un colaborador con ese nombre.");return;}
+    if(name!==oldName){
+      // Renombrar incidencias y formatos
+      Object.values(data.incidents).forEach(day=>{if(day[oldName]!==undefined){day[name]=day[oldName];delete day[oldName];}});
+      if(data.formats)Object.values(data.formats).forEach(day=>{if(day[oldName]!==undefined){day[name]=day[oldName];delete day[oldName];}});
+    }
+    data.collaborators[editIdx]={name,equipo,isLET};
+  }else{
+    // Modo agregar
+    if(data.collaborators.some(c=>cName(c)===name)){alert("Ya existe un colaborador con ese nombre.");return;}
+    data.collaborators.push({name,equipo,isLET});
+  }
   save(data);closeModal();renderCollabs();renderCalendar();
 }
 
 function deleteCollab(idx){
-  const data=load(),name=data.collaborators[idx];
+  const data=load(),name=cName(data.collaborators[idx]);
   if(!confirm(`\u00bfEliminar a "${name}"?\nTambi\u00e9n se borrar\u00e1n todas sus incidencias registradas.`))return;
   data.collaborators.splice(idx,1);
   Object.keys(data.incidents).forEach(key=>{delete data.incidents[key][name];if(!Object.keys(data.incidents[key]).length)delete data.incidents[key];});
@@ -1254,7 +1397,7 @@ function renderAnalisis(){
   const monthVal=document.getElementById("ana-month").value;
   const filterMonth=monthVal===""?null:parseInt(monthVal);
   const data=load();
-  const collabs=data.collaborators;
+  const collabs=data.collaborators.map(c=>cName(c));
 
   // Build prefix filter
   function inRange(dateKey){
@@ -1456,7 +1599,8 @@ function populateReporteFilters(){
   const cs=document.getElementById("rep-filter-collab");
   const prevC=cs.value;
   cs.innerHTML=`<option value="">-- Selecciona colaborador --</option>`;
-  data.collaborators.forEach(n=>{
+  data.collaborators.forEach(c=>{
+    const n=cName(c);
     const o=document.createElement("option");
     o.value=n;o.textContent=n;cs.appendChild(o);
   });
@@ -2161,31 +2305,47 @@ function processExcelFile(file){
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
 
-      /* collect non-empty strings from first column, skip header if it looks like one */
+      // Detectar formato numérico: encabezados en primera fila
+      let nameColIdx=0;
+      let isNumerico=false;
+      if(rows.length>0){
+        const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
+        // Numérico tiene: nombre/met/empleado, linea, mayordomia, costo, lider, fecha
+        const nameIdx=hdr.findIndex(h=>/\bmet\b|nombre|empleado/i.test(h));
+        const hasExtra=hdr.some(h=>/l[ií]nea|linea|mayor|costo|fecha/i.test(h));
+        if(nameIdx>=0&&hasExtra){isNumerico=true;nameColIdx=nameIdx;}
+      }
+
+      // Construir lista de nombres
       let names=[];
       rows.forEach((row,ri)=>{
-        const cell=String(row[0]||"").trim();
+        if(ri===0){
+          // Saltar encabezado si contiene palabras clave
+          const cell=String(row[nameColIdx]||"").trim();
+          if(/nombre|colaborador|name|empleado|\bmet\b|#/i.test(cell))return;
+        }
+        const cell=String(row[nameColIdx]||"").trim();
         if(!cell)return;
-        /* skip a header row: if first row contains keywords like "nombre","colaborador","name" */
-        if(ri===0&&/nombre|colaborador|name|empleado/i.test(cell))return;
         names.push(cell);
       });
 
       if(!names.length){
-        alert("No se encontraron nombres en la primera columna del archivo.");
+        alert("No se encontraron nombres en el archivo."+(isNumerico?" (Detectado: formato Num\u00e9rico)":""));
         return;
       }
 
       const existing=load().collaborators;
-      const newNames=names.filter(n=>!existing.includes(n));
-      const dupNames=names.filter(n=>existing.includes(n));
+      const existingNames=existing.map(c=>cName(c));
+      const newNames=names.filter(n=>!existingNames.includes(n));
+      const dupNames=names.filter(n=>existingNames.includes(n));
       pendingImportNames=newNames;
 
       /* summary */
       document.getElementById("import-summary").innerHTML=
+        (isNumerico?`<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:.8rem;color:#1d4ed8">&#128196; Detectado: <b>Archivo Num\u00e9rico</b> &mdash; columna de nombre encontrada en posici\u00f3n ${nameColIdx+1}</div>`:"")+
         `Se encontraron <b>${names.length}</b> nombre(s) en el archivo:<br>`+
         `<b style="color:#166534">${newNames.length} nuevos</b> para agregar`+
-        (dupNames.length?` &nbsp;·&nbsp; <span>${dupNames.length} ya existentes (se omitirán)</span>`:"");
+        (dupNames.length?` &nbsp;&middot;&nbsp; <span>${dupNames.length} ya existentes (se omitir\u00e1n)</span>`:"");
 
       /* preview list */
       document.getElementById("import-preview-list").innerHTML=
@@ -2198,7 +2358,7 @@ function processExcelFile(file){
       document.getElementById("btn-import-confirm").style.display=newNames.length?"inline-block":"none";
 
     }catch(err){
-      alert("Error al leer el archivo. Asegúrate de que sea un Excel válido (.xlsx, .xls) o CSV.\n\n"+err.message);
+      alert("Error al leer el archivo. Aseg\u00farate de que sea un Excel v\u00e1lido (.xlsx, .xls) o CSV.\n\n"+err.message);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -2208,15 +2368,14 @@ document.getElementById("btn-import-confirm").addEventListener("click",()=>{
   if(!pendingImportNames.length)return;
   const data=load();
   pendingImportNames.forEach(name=>{
-    if(!data.collaborators.includes(name))data.collaborators.push(name);
+    if(!data.collaborators.some(c=>cName(c)===name))
+      data.collaborators.push({name,equipo:"",isLET:false});
   });
-  data.collaborators.sort((a,b)=>a.localeCompare(b,"es"));
   save(data);
   closeImportModal();
   renderCollabs();
   renderCalendar();
-  const msg=`Se importaron ${pendingImportNames.length} colaborador(es) correctamente.`;
-  showToast(msg);
+  showToast(`Se importaron ${pendingImportNames.length} colaborador(es). Asigna su equipo y LET en la pesta\u00f1a Colaboradores.`);
   pendingImportNames=[];
 });
 
@@ -2447,7 +2606,7 @@ function confirmClearAll(){
   data.formats={};
   save(data);
   closeClearAllModal();
-  renderCollaborators();
+  renderCollabs();
   renderCalendar();
   showToast("Todos los datos han sido eliminados","#dc2626");
   syncToCloud();
@@ -2477,6 +2636,10 @@ function importBackup(file){
       const data=JSON.parse(e.target.result);
       if(!data.collaborators&&!data.incidents){alert("Archivo inv\u00e1lido: no parece un backup de esta app.");return;}
       if(!confirm("Esto reemplazar\u00e1 todos tus datos actuales con el backup. \u00BFContinu\u00e1r?")){return;}
+      // Migrar colaboradores si son strings
+      if(data.collaborators&&data.collaborators.length&&typeof data.collaborators[0]==="string"){
+        data.collaborators=data.collaborators.map(n=>({name:n,equipo:"",isLET:false}));
+      }
       // Guardar en local y sincronizar a nube
       data._ts=Date.now();
       localStorage.setItem(STORE,JSON.stringify(data));
