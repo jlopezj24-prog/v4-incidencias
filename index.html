@@ -775,11 +775,15 @@
 
   <div style="background:#eef2ff;border-left:4px solid #6366f1;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:.88rem;color:#1e293b;">
     <b>📌 Instrucción:</b> Carga el <b>numérico actual</b> (archivo Excel oficial con tu personal). El sistema detectará automáticamente las columnas <code style="background:#e0e7ff;padding:1px 6px;border-radius:4px;">Worker</code>, <code style="background:#e0e7ff;padding:1px 6px;border-radius:4px;">Date of Birth</code>, <code style="background:#e0e7ff;padding:1px 6px;border-radius:4px;">Hire Date</code> y <code style="background:#e0e7ff;padding:1px 6px;border-radius:4px;">Manager</code>, y filtrará solo a los colaboradores asignados a ti según tu nombre configurado en <b>⚙ Mi Línea</b>.
+    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #c7d2fe;font-size:.82rem;color:#475569;">
+      💡 <b>¿El botón de cargar te bloquea por seguridad GM?</b> Usa el botón verde <b>📋 Pegar desde Excel</b>: abre el numérico, selecciona toda la tabla con <b>Ctrl+A</b>, cópiala con <b>Ctrl+C</b> y pega aquí.
+    </div>
   </div>
 
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;">
     <label for="bday-file" style="padding:9px 16px;border-radius:8px;background:#6366f1;color:white;font-size:.85rem;font-weight:700;cursor:pointer;">📥 Cargar Numérico Actual</label>
     <input type="file" id="bday-file" accept=".xlsx,.xls,.csv" style="display:none;">
+    <button id="btn-bday-paste" type="button" style="padding:9px 16px;border-radius:8px;background:#10b981;color:white;border:none;font-size:.85rem;font-weight:700;cursor:pointer;" title="Si DLP bloquea el archivo: copia la tabla en Excel y pégala aquí">📋 Pegar desde Excel</button>
     <button id="btn-bday-clear" style="padding:9px 16px;border-radius:8px;border:1.5px solid #ef4444;background:white;color:#ef4444;font-size:.85rem;font-weight:700;cursor:pointer;">🗑 Limpiar Todo</button>
     <span id="bday-count" style="margin-left:auto;font-size:.85rem;color:#64748b;font-weight:600;"></span>
   </div>
@@ -3796,6 +3800,7 @@ function initBirthdaysPanel(){
   const fileInput=document.getElementById('bday-file');
   const monthSel=document.getElementById('bday-month');
   const btnClear=document.getElementById('btn-bday-clear');
+  const btnPaste=document.getElementById('btn-bday-paste');
   
   if(fileInput){
     fileInput.addEventListener('change',e=>{
@@ -3804,6 +3809,7 @@ function initBirthdaysPanel(){
       if(file)importBirthdaysExcel(file);
     });
   }
+  if(btnPaste)btnPaste.addEventListener('click',openPasteNumericoModal);
   if(monthSel)monthSel.addEventListener('change',renderBirthdaysList);
   if(btnClear)btnClear.addEventListener('click',()=>{
     const tipo=bdayViewMode==='bdays'?'cumpleaños':'aniversarios';
@@ -3847,7 +3853,16 @@ async function importBirthdaysExcel(file){
       showToast('El archivo está vacío',3000);
       return;
     }
-    
+    processBirthdayRows(rows);
+  }catch(e){
+    console.error('[Cumpleaños] Error import:',e);
+    showToast('Error al importar: '+e.message,5000);
+  }
+}
+
+/* Procesa filas (de Excel o pegado) y guarda cumpleaños/aniversarios */
+function processBirthdayRows(rows){
+  try{
     // Detectar columnas (busca primero columnas específicas del archivo "numerico")
     const firstRow=rows[0];
     const keys=Object.keys(firstRow);
@@ -3957,9 +3972,151 @@ async function importBirthdaysExcel(file){
       setTimeout(()=>showToast('⚠ Ningún colaborador coincidió con tu nombre de supervisor. Revisa "Mi Línea".',6000),500);
     }
   }catch(e){
-    console.error('[Cumpleaños] Error import:',e);
-    showToast('Error al importar: '+e.message,5000);
+    console.error('[Cumpleaños] Error procesando filas:',e);
+    showToast('Error al procesar: '+e.message,5000);
   }
+}
+
+/* ═══════════════════════════════════════════
+   PEGAR NUMÉRICO DESDE PORTAPAPELES (bypass DLP)
+═══════════════════════════════════════════ */
+function openPasteNumericoModal(){
+  // Crear modal dinámicamente si no existe
+  let modal=document.getElementById('modal-paste-numerico');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='modal-paste-numerico';
+    modal.className='modal-overlay';
+    modal.innerHTML=`
+      <div class="modal-box" style="max-width:760px;max-height:92vh;overflow-y:auto;">
+        <h3 style="margin-top:0;">📋 Pegar Numérico desde Excel</h3>
+        <div style="background:#ecfdf5;border-left:4px solid #10b981;padding:12px 14px;border-radius:8px;font-size:.86rem;color:#064e3b;margin-bottom:14px;line-height:1.5;">
+          <b>Pasos:</b><br>
+          1. Abre el numérico en Excel<br>
+          2. Selecciona <b>toda la tabla incluyendo encabezados</b> (Ctrl+A o arrastra)<br>
+          3. Copia con <b>Ctrl+C</b><br>
+          4. Click en el cuadro de abajo y pega con <b>Ctrl+V</b><br>
+          5. Click en <b>Procesar</b>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+          <button id="paste-from-clipboard-btn" type="button" style="padding:7px 12px;border-radius:6px;background:#6366f1;color:white;border:none;font-size:.82rem;font-weight:700;cursor:pointer;">📥 Pegar automáticamente desde portapapeles</button>
+          <span style="font-size:.78rem;color:#64748b;align-self:center;">o pega manual con Ctrl+V en el cuadro:</span>
+        </div>
+        <textarea id="paste-numerico-area" placeholder="Pega aquí el contenido copiado de Excel (incluye encabezados como Worker, Date of Birth, Hire Date, Manager)..." style="width:100%;height:220px;padding:10px;border:2px dashed #cbd5e1;border-radius:8px;font-family:monospace;font-size:.78rem;resize:vertical;"></textarea>
+        <div id="paste-preview" style="margin-top:10px;font-size:.78rem;color:#64748b;"></div>
+        <div class="modal-actions" style="margin-top:14px;">
+          <button class="btn-cancel" id="paste-numerico-cancel" type="button">Cancelar</button>
+          <button class="btn-primary" id="paste-numerico-confirm" type="button" style="background:#10b981;">Procesar ✓</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    
+    modal.querySelector('#paste-numerico-cancel').addEventListener('click',()=>{
+      modal.classList.remove('open');
+    });
+    modal.querySelector('#paste-numerico-confirm').addEventListener('click',()=>{
+      const txt=modal.querySelector('#paste-numerico-area').value;
+      if(!txt||!txt.trim()){
+        showToast('Pega primero el contenido del Excel',3000);
+        return;
+      }
+      try{
+        const rows=parsePastedTable(txt);
+        if(!rows.length){
+          showToast('No se detectaron filas válidas. Verifica que copiaste con encabezados.',4000);
+          return;
+        }
+        modal.classList.remove('open');
+        processBirthdayRows(rows);
+      }catch(err){
+        console.error(err);
+        showToast('Error al procesar: '+err.message,4000);
+      }
+    });
+    modal.querySelector('#paste-from-clipboard-btn').addEventListener('click',async()=>{
+      try{
+        const txt=await navigator.clipboard.readText();
+        if(!txt||!txt.trim()){
+          showToast('El portapapeles está vacío. Copia primero la tabla en Excel.',3500);
+          return;
+        }
+        modal.querySelector('#paste-numerico-area').value=txt;
+        updatePastePreview(txt);
+        showToast('Pegado. Click en "Procesar" para continuar.',2500);
+      }catch(err){
+        showToast('No se pudo leer el portapapeles. Pega manual con Ctrl+V.',3500);
+      }
+    });
+    modal.querySelector('#paste-numerico-area').addEventListener('input',e=>{
+      updatePastePreview(e.target.value);
+    });
+  }
+  modal.querySelector('#paste-numerico-area').value='';
+  modal.querySelector('#paste-preview').textContent='';
+  modal.classList.add('open');
+  setTimeout(()=>modal.querySelector('#paste-numerico-area').focus(),100);
+}
+
+function updatePastePreview(txt){
+  const prev=document.getElementById('paste-preview');
+  if(!prev)return;
+  if(!txt||!txt.trim()){prev.textContent='';return;}
+  const lines=txt.split(/\r?\n/).filter(l=>l.trim().length>0);
+  const sep=detectSeparator(lines[0]||'');
+  const cols=lines[0]?lines[0].split(sep).length:0;
+  prev.textContent=`📊 Detectado: ${lines.length} línea(s), ${cols} columna(s), separador: "${sep==='\t'?'TAB':sep}"`;
+  prev.style.color='#059669';
+}
+
+function detectSeparator(line){
+  const tabs=(line.match(/\t/g)||[]).length;
+  const semis=(line.match(/;/g)||[]).length;
+  const commas=(line.match(/,/g)||[]).length;
+  if(tabs>=Math.max(semis,commas))return '\t';
+  if(semis>=commas)return ';';
+  return ',';
+}
+
+/* Parser robusto TSV/CSV (maneja comillas) */
+function parsePastedTable(txt){
+  const text=txt.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const lines=text.split('\n');
+  // Quitar últimas líneas vacías
+  while(lines.length&&!lines[lines.length-1].trim())lines.pop();
+  if(lines.length<2)return [];
+  const sep=detectSeparator(lines[0]);
+  
+  function splitLine(line){
+    // Soporta valores entrecomillados con escapes ""
+    const out=[];
+    let cur='',inQ=false;
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(inQ){
+        if(c==='"'){
+          if(line[i+1]==='"'){cur+='"';i++;}
+          else inQ=false;
+        }else cur+=c;
+      }else{
+        if(c==='"')inQ=true;
+        else if(c===sep){out.push(cur);cur='';}
+        else cur+=c;
+      }
+    }
+    out.push(cur);
+    return out;
+  }
+  
+  const headers=splitLine(lines[0]).map(h=>h.trim());
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim())continue;
+    const vals=splitLine(lines[i]);
+    const obj={};
+    headers.forEach((h,j)=>{obj[h]=vals[j]!==undefined?vals[j]:'';});
+    rows.push(obj);
+  }
+  return rows;
 }
 
 function downloadBirthdayTemplate(){
