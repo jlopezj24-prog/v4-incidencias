@@ -6375,10 +6375,11 @@ function openManual(){
     modal=document.createElement('div');
     modal.id='modal-manual';
     modal.className='modal-overlay';
-    modal.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9999;display:none;align-items:stretch;justify-content:center;padding:20px;';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9999;align-items:stretch;justify-content:center;padding:20px;';
     
     modal.innerHTML=`
       <style>
+        #modal-manual{display:none;}
         #modal-manual.open{display:flex;}
         #modal-manual .manual-box{background:white;border-radius:14px;width:100%;max-width:1100px;max-height:96vh;display:flex;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.4);}
         #modal-manual .manual-side{width:260px;background:#f8fafc;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;}
