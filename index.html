@@ -547,6 +547,7 @@
       &#128276;
       <span id="notif-count" class="notif-badge" style="display:none;">0</span>
     </button>
+    <button class="btn-notif" id="btn-help" title="Manual de uso (?)" style="background:rgba(255,255,255,.18);">&#10067;</button>
     <button class="btn-settings" id="btn-open-setup" title="Configurar línea">&#9881; Mi L&iacute;nea</button>
     <button class="sync-btn" id="btn-sync-status" title="Configurar sincronización en la nube">
       <span class="sync-dot off" id="sync-dot"></span>
@@ -6052,6 +6053,468 @@ setTimeout(()=>{
     });
   }
 },100);
+
+/* ══════════════════════════════════════════════════════════════════
+   📚 MANUAL DE USO INTEGRADO
+══════════════════════════════════════════════════════════════════ */
+const MANUAL_SECTIONS=[
+  {id:"inicio",icon:"🚀",title:"Primeros Pasos",content:`
+    <h3>👋 Bienvenido al Control de Incidencias</h3>
+    <p>Esta herramienta te ayuda a llevar el control diario de incidencias, vacaciones, formatos y aniversarios de tu equipo en GM.</p>
+    
+    <h4>Configura tu línea (1 vez)</h4>
+    <ol>
+      <li>Click en <b>⚙ Mi Línea</b> (esquina superior derecha)</li>
+      <li>Escribe el <b>nombre de tu línea</b> (ej. "Vestiduras 4")</li>
+      <li>Escribe tu <b>nombre completo tal como aparece en el numérico</b> (ej. "Josue Emmanuel Lopez Juarez")</li>
+      <li>Elige el <b>color de la barra</b> si quieres personalizar</li>
+      <li>Click en <b>Guardar ✓</b></li>
+    </ol>
+    <p class="tip">💡 <b>Importante</b>: el nombre debe coincidir con la columna <code>Manager</code> del numérico, así el sistema filtra solo a TU equipo en cumpleaños/aniversarios.</p>
+    
+    <h4>Configura el turno</h4>
+    <ol>
+      <li>En el calendario, click en el botón <b>⚙ Turno</b></li>
+      <li>Elige Diurno, Nocturno o Mixto</li>
+      <li>Configura periodos especiales si tu turno cambia algunas semanas</li>
+    </ol>
+  `},
+  
+  {id:"colaboradores",icon:"👥",title:"Colaboradores y Equipos",content:`
+    <h3>Gestionar tu personal</h3>
+    
+    <h4>Agregar un colaborador</h4>
+    <ol>
+      <li>Pestaña <b>👥 Colaboradores</b></li>
+      <li>Escribe el nombre y click en <b>+ Agregar</b></li>
+      <li>Opcional: asígnale un <b>equipo</b> (ej. "Equipo A")</li>
+      <li>Marca como <b>⭐ LET</b> si es Líder de Equipo</li>
+    </ol>
+    
+    <h4>Importar colaboradores desde Excel</h4>
+    <ol>
+      <li>Pestaña <b>👥 Colaboradores</b></li>
+      <li>Click en <b>📥 Importar Excel</b></li>
+      <li>Selecciona archivo con columna "Nombre" (acepta .xlsx, .xls, .csv)</li>
+    </ol>
+    
+    <h4>Editar o eliminar</h4>
+    <ul>
+      <li>Click en el ✏️ <b>lápiz</b> para editar nombre/equipo</li>
+      <li>Click en 🗑 <b>papelera</b> para eliminar</li>
+    </ul>
+  `},
+  
+  {id:"calendario",icon:"📅",title:"Calendario e Incidencias",content:`
+    <h3>Capturar incidencias diarias</h3>
+    
+    <h4>Capturar una incidencia</h4>
+    <ol>
+      <li>Pestaña <b>📅 Calendario</b></li>
+      <li>Click en la <b>celda</b> del día y colaborador</li>
+      <li>Elige el tipo de incidencia (VAC, FI, FJ, PSG, SAN, etc.)</li>
+      <li>Click en <b>Guardar</b></li>
+    </ol>
+    
+    <h4>Tipos de incidencia</h4>
+    <ul>
+      <li><b>VAC</b> · Vacaciones (requiere formato)</li>
+      <li><b>FI</b> · Falta Injustificada</li>
+      <li><b>FJ</b> · Falta Justificada (requiere formato)</li>
+      <li><b>PSG</b> · Permiso Sin Goce (requiere formato)</li>
+      <li><b>SAN</b> · Sanción (requiere formato)</li>
+      <li><b>RT</b> · Retardo</li>
+      <li><b>INC</b> · Incapacidad</li>
+    </ul>
+    <p class="tip">💡 Las incidencias marcadas con <code>!</code> rojo significan que <b>falta entregar el formato a RH</b>.</p>
+    
+    <h4>Indicadores del calendario</h4>
+    <ul>
+      <li>🎂 = cumpleaños del día</li>
+      <li>🎉 = aniversario en GM</li>
+      <li>🎂🎉 = ambos</li>
+      <li>🎯 = día festivo en México</li>
+      <li>Fila <b>Total incidencias</b> = cuántas en cada día</li>
+      <li>Fila <b>% Asistencia</b> = porcentaje del día (verde ≥95%, ámbar 85-94%, rojo &lt;85%)</li>
+    </ul>
+    
+    <h4>Marcar formato como entregado a RH</h4>
+    <ol>
+      <li>Click en la celda con incidencia</li>
+      <li>En el popup, marca <b>✓ Formato entregado a RH</b></li>
+      <li>El badge cambiará de <code>!</code> rojo a <code>✓</code> verde</li>
+    </ol>
+  `},
+  
+  {id:"alertas",icon:"🔔",title:"Alertas",content:`
+    <h3>Sistema de alertas automáticas</h3>
+    
+    <h4>📝 Formatos pendientes de la semana</h4>
+    <p>Arriba de las alertas verás un panel rojo con todos los formatos sin entregar de <b>esta semana (lun a dom)</b>.</p>
+    <ul>
+      <li>🔴 <b>VENCIDO Xd</b> = pasó el día del incidente sin formato</li>
+      <li>🟡 <b>HOY</b> = es de hoy</li>
+      <li>🔵 <b>PRÓXIMO</b> = es de un día futuro de la semana</li>
+      <li>Click en <b>✓ Entregado</b> para marcarlo</li>
+    </ul>
+    
+    <h4>🌴 Alertas de vacaciones</h4>
+    <p>El sistema te avisa cuando <b>2 o más colaboradores del mismo equipo</b> piden vacaciones el mismo día (conflicto de cobertura).</p>
+    
+    <h4>⚠️ Exceso de faltas</h4>
+    <p>Si un colaborador supera el límite de faltas configurado, aparece alerta automática.</p>
+    <p class="tip">💡 Configura el límite en <b>⚙ Configuración de alertas</b>.</p>
+  `},
+  
+  {id:"cumpleanios",icon:"🎂",title:"Cumpleaños y Aniversarios",content:`
+    <h3>Importar el numérico</h3>
+    
+    <h4>Método 1: Cargar archivo Excel</h4>
+    <ol>
+      <li>Pestaña <b>🎂 Cumpleaños</b></li>
+      <li>Click en <b>📥 Cargar Numérico Actual</b></li>
+      <li>Selecciona el archivo (.xlsx, .xls, .csv)</li>
+    </ol>
+    
+    <h4>Método 2: Pegar desde Excel (si DLP te bloquea)</h4>
+    <ol>
+      <li>Abre el numérico en Excel</li>
+      <li>Selecciona toda la tabla con <b>Ctrl+A</b> y copia con <b>Ctrl+C</b></li>
+      <li>En la app, click en el botón verde <b>📋 Pegar desde Excel</b></li>
+      <li>Pega con Ctrl+V o usa el botón "Pegar automáticamente"</li>
+      <li>Click en <b>Procesar ✓</b></li>
+    </ol>
+    <p class="tip">⚠️ El sistema detecta automáticamente las columnas <code>Worker</code>, <code>Date of Birth</code>, <code>Hire Date</code> y <code>Manager</code>, y filtra solo a los colaboradores asignados a ti.</p>
+    
+    <h4>Sub-pestañas</h4>
+    <ul>
+      <li>🎂 <b>Cumpleaños</b> = fechas de nacimiento</li>
+      <li>🎉 <b>Aniversarios</b> = años en GM (Hire Date)</li>
+    </ul>
+    
+    <h4>👟 Sistema de zapatos (en aniversarios)</h4>
+    <p>Cada colaborador con aniversario tiene una mini-tarjeta con:</p>
+    <ul>
+      <li><b>👟 Número</b>: captura el tamaño de zapato (ej. 27.5)</li>
+      <li><b>✅ Checkbox de entrega</b>: márcalo cuando entregues los zapatos</li>
+      <li>Cada año el checkbox se reinicia automáticamente</li>
+      <li>Resumen mensual: cuántos pendientes, entregados y sin número</li>
+    </ul>
+  `},
+  
+  {id:"vacaciones",icon:"🌴",title:"Vacaciones y Planeación",content:`
+    <h3>Planeación de vacaciones</h3>
+    <ol>
+      <li>Pestaña <b>🕐 Planeación</b></li>
+      <li>Visualiza el calendario anual de tu equipo</li>
+      <li>Detecta automáticamente conflictos del mismo equipo</li>
+    </ol>
+    
+    <h4>Capturar vacaciones</h4>
+    <ol>
+      <li>En el calendario, click en la celda</li>
+      <li>Selecciona <b>VAC - Vacaciones</b></li>
+      <li>Marca el rango de días</li>
+      <li>El formato queda pendiente hasta que lo entregues a RH</li>
+    </ol>
+  `},
+  
+  {id:"resumen",icon:"📊",title:"Resumen y Análisis",content:`
+    <h3>Pestaña de análisis</h3>
+    
+    <h4>KPIs principales</h4>
+    <ul>
+      <li>Total de incidencias del período</li>
+      <li>Asistencia promedio</li>
+      <li>Retardos, faltas, vacaciones</li>
+    </ul>
+    
+    <h4>Comparativo Mes vs Mes</h4>
+    <p>Ve cómo evoluciona tu equipo: ↑↓ con porcentaje vs el mes anterior.</p>
+    
+    <h4>🔥 Top Ausentismo</h4>
+    <p>Ranking de los 3 colaboradores con más faltas del período (sin medallas, solo #1, #2, #3).</p>
+    
+    <h4>📊 Dashboard ejecutivo en PDF</h4>
+    <ol>
+      <li>Click en <b>📄 Dashboard PDF</b></li>
+      <li>Se descarga un PDF de 1 página con KPIs, top, ranking y tabla completa</li>
+      <li>Listo para mandar a tu gerente o RH</li>
+    </ol>
+  `},
+  
+  {id:"evidencias",icon:"📎",title:"Evidencias RH",content:`
+    <h3>Subir evidencias</h3>
+    <ol>
+      <li>Pestaña <b>📎 Evidencias RH</b></li>
+      <li>Click en <b>📤 Subir archivos</b></li>
+      <li>Selecciona fotos o PDFs</li>
+      <li>Asocia con el colaborador, tipo (PSG/SAN/FI) y fecha</li>
+      <li>Agrega notas opcionales</li>
+    </ol>
+    <p class="tip">💡 Las imágenes se <b>comprimen automáticamente</b> a 1280px para ahorrar espacio (sin perder calidad útil).</p>
+    
+    <h4>Filtros</h4>
+    <ul>
+      <li>Por colaborador</li>
+      <li>Por tipo de formato</li>
+      <li>Por mes</li>
+    </ul>
+    
+    <h4>Límites</h4>
+    <ul>
+      <li>Imágenes: hasta <b>8MB</b> cada una (se comprimen)</li>
+      <li>PDFs: hasta <b>2MB</b> cada uno</li>
+      <li>Formatos: JPG, PNG, GIF, WEBP, PDF</li>
+    </ul>
+  `},
+  
+  {id:"backup",icon:"💾",title:"Backup y Almacenamiento",content:`
+    <h3>Protege tu información</h3>
+    
+    <p class="warn">⚠️ <b>Toda la información se guarda en este navegador</b>. Si cambias de PC, navegador, o borras caché, perderás todo. <b>Haz backup cada semana</b>.</p>
+    
+    <h4>💾 Descargar backup</h4>
+    <ol>
+      <li>Click en <b>⚙ Mi Línea</b></li>
+      <li>Sección <b>💾 Almacenamiento local</b></li>
+      <li>Click en <b>💾 Descargar backup</b></li>
+      <li>Se descarga un archivo <code>backup_linea_fecha.json</code></li>
+      <li><b>Guárdalo en tu OneDrive</b> personal</li>
+    </ol>
+    
+    <h4>📥 Restaurar backup</h4>
+    <ol>
+      <li>Click en <b>⚙ Mi Línea</b></li>
+      <li>Click en <b>📥 Restaurar backup</b></li>
+      <li>Selecciona el archivo .json</li>
+      <li>Confirma → la app recarga con tu data restaurada</li>
+    </ol>
+    
+    <h4>📦 Indicador de almacenamiento</h4>
+    <p>Barra de progreso que te muestra cuánto espacio usaste:</p>
+    <ul>
+      <li>🟢 Verde &lt; 60% — todo bien</li>
+      <li>🟡 Ámbar 60-80% — empieza a depurar</li>
+      <li>🔴 Rojo ≥ 80% — borra evidencias antiguas</li>
+    </ul>
+  `},
+  
+  {id:"problemas",icon:"🆘",title:"Solución de Problemas",content:`
+    <h3>Errores comunes y cómo resolverlos</h3>
+    
+    <h4>❌ "GM bloqueó la carga del numérico" (DLP)</h4>
+    <p><b>Solución</b>: usa el botón verde <b>📋 Pegar desde Excel</b> en lugar de cargar archivo. Copia desde Excel y pega.</p>
+    
+    <h4>❌ "El botón Guardar de Mi Línea no hace nada"</h4>
+    <p><b>Solución</b>: el modal tiene scroll interno. Desliza hacia abajo dentro del modal para encontrar el botón Guardar.</p>
+    
+    <h4>❌ "Perdí toda mi información"</h4>
+    <p><b>Causa</b>: cambiaste de navegador, PC, o borraste caché.</p>
+    <p><b>Solución</b>: restaura desde tu último backup en ⚙ Mi Línea → 📥 Restaurar backup.</p>
+    <p><b>Prevención</b>: descarga backup cada semana.</p>
+    
+    <h4>❌ "Almacenamiento lleno"</h4>
+    <p><b>Solución</b>: ve a Evidencias RH y elimina las fotos más antiguas (>6 meses).</p>
+    
+    <h4>❌ "No me salen los menús en celular/tablet"</h4>
+    <p><b>Solución</b>: busca el botón <b>☰</b> (hamburguesa) flotante abajo a la derecha.</p>
+    
+    <h4>❌ "Los cumpleaños no aparecen mis colaboradores"</h4>
+    <p><b>Causa</b>: tu nombre en ⚙ Mi Línea no coincide con la columna <code>Manager</code> del numérico.</p>
+    <p><b>Solución</b>: ve a Mi Línea y escribe tu nombre <b>tal cual aparece en el numérico</b>.</p>
+    
+    <h4>❌ "El tema/color no cambia"</h4>
+    <p><b>Solución</b>: presiona <b>Ctrl + Shift + R</b> para recargar forzado.</p>
+  `},
+  
+  {id:"tips",icon:"💡",title:"Tips y Mejores Prácticas",content:`
+    <h3>Consejos para sacarle más provecho</h3>
+    
+    <h4>📅 Rutina diaria recomendada</h4>
+    <ol>
+      <li><b>Al iniciar turno</b>: revisa la pestaña <b>🔔 Alertas</b> para ver formatos pendientes</li>
+      <li><b>Durante el día</b>: captura incidencias en el momento que pasen</li>
+      <li><b>Al cerrar</b>: marca formatos entregados a RH</li>
+    </ol>
+    
+    <h4>📅 Rutina semanal</h4>
+    <ul>
+      <li><b>Lunes</b>: descarga backup del viernes anterior</li>
+      <li><b>Viernes</b>: revisa resumen de la semana</li>
+      <li>Cierra los formatos pendientes antes de salir</li>
+    </ul>
+    
+    <h4>📅 Rutina mensual</h4>
+    <ul>
+      <li>Importa el numérico actualizado en 🎂 Cumpleaños</li>
+      <li>Captura zapatos pendientes en 🎉 Aniversarios</li>
+      <li>Genera Dashboard PDF para tu gerente</li>
+      <li>Depura evidencias antiguas si llegas al 80% de almacenamiento</li>
+    </ul>
+    
+    <h4>⌨️ Atajos del navegador útiles</h4>
+    <ul>
+      <li><b>Ctrl + Shift + R</b> = recarga forzada (después de actualizaciones)</li>
+      <li><b>F11</b> = pantalla completa</li>
+      <li><b>Ctrl + +/-</b> = zoom</li>
+      <li><b>F12</b> = consola (para soporte técnico)</li>
+    </ul>
+    
+    <h4>🎨 Personalización</h4>
+    <ul>
+      <li>Cambia el color de la barra superior en ⚙ Mi Línea</li>
+      <li>6 temas predefinidos + selector personalizado</li>
+    </ul>
+  `}
+];
+
+function openManual(){
+  let modal=document.getElementById('modal-manual');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='modal-manual';
+    modal.className='modal-overlay';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9999;display:none;align-items:stretch;justify-content:center;padding:20px;';
+    
+    modal.innerHTML=`
+      <style>
+        #modal-manual.open{display:flex;}
+        #modal-manual .manual-box{background:white;border-radius:14px;width:100%;max-width:1100px;max-height:96vh;display:flex;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.4);}
+        #modal-manual .manual-side{width:260px;background:#f8fafc;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;}
+        #modal-manual .manual-side-header{padding:16px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,var(--gm-header-1,#0f172a),var(--gm-header-2,#1e3a5f));color:white;}
+        #modal-manual .manual-side-header h2{margin:0;font-size:1.05rem;font-weight:800;display:flex;align-items:center;gap:8px;}
+        #modal-manual .manual-search{padding:10px 14px;border-bottom:1px solid #e2e8f0;}
+        #modal-manual .manual-search input{width:100%;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:.82rem;}
+        #modal-manual .manual-toc{flex:1;overflow-y:auto;padding:8px 0;}
+        #modal-manual .manual-toc-item{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:.85rem;color:#334155;border-left:3px solid transparent;font-weight:600;}
+        #modal-manual .manual-toc-item:hover{background:#e2e8f0;}
+        #modal-manual .manual-toc-item.active{background:#eef2ff;border-left-color:var(--gm-accent,#6366f1);color:var(--gm-accent,#4338ca);}
+        #modal-manual .manual-content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+        #modal-manual .manual-content-header{padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:10px;background:white;}
+        #modal-manual .manual-body{flex:1;overflow-y:auto;padding:24px 32px;line-height:1.65;color:#1e293b;}
+        #modal-manual .manual-body h3{margin-top:0;color:#0f172a;font-size:1.4rem;border-bottom:2px solid var(--gm-accent,#6366f1);padding-bottom:8px;margin-bottom:16px;}
+        #modal-manual .manual-body h4{color:#0f172a;font-size:1.05rem;margin-top:22px;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+        #modal-manual .manual-body p{margin:8px 0;}
+        #modal-manual .manual-body ul,#modal-manual .manual-body ol{margin:8px 0 12px 18px;padding-left:6px;}
+        #modal-manual .manual-body li{margin:4px 0;}
+        #modal-manual .manual-body code{background:#f1f5f9;padding:1px 6px;border-radius:4px;font-size:.86em;color:#7c3aed;font-weight:600;}
+        #modal-manual .manual-body .tip{background:#eef2ff;border-left:3px solid #6366f1;padding:10px 14px;border-radius:6px;margin:12px 0;font-size:.92rem;}
+        #modal-manual .manual-body .warn{background:#fef2f2;border-left:3px solid #ef4444;padding:10px 14px;border-radius:6px;margin:12px 0;font-size:.92rem;color:#7f1d1d;}
+        #modal-manual .manual-btn{padding:7px 12px;border-radius:6px;border:1px solid #cbd5e1;background:white;color:#475569;font-size:.78rem;font-weight:700;cursor:pointer;}
+        #modal-manual .manual-btn:hover{background:#f1f5f9;}
+        #modal-manual .manual-btn.primary{background:#ef4444;color:white;border-color:#dc2626;}
+        @media(max-width:768px){
+          #modal-manual .manual-box{flex-direction:column;}
+          #modal-manual .manual-side{width:100%;max-height:38vh;}
+        }
+        @media print{
+          #modal-manual{position:static;background:white;padding:0;display:block !important;}
+          #modal-manual .manual-box{max-width:100%;max-height:none;box-shadow:none;border-radius:0;display:block;}
+          #modal-manual .manual-side,#modal-manual .manual-content-header{display:none;}
+          #modal-manual .manual-body{overflow:visible;height:auto;padding:20px;}
+          .app-header,.tabs,.tab-panel,.app-footer,.mobile-menu-btn{display:none !important;}
+        }
+      </style>
+      <div class="manual-box">
+        <aside class="manual-side">
+          <div class="manual-side-header">
+            <h2>📚 Manual de Uso</h2>
+            <div style="font-size:.72rem;opacity:.85;margin-top:4px;">Control de Incidencias V4</div>
+          </div>
+          <div class="manual-search">
+            <input type="text" id="manual-search-input" placeholder="🔍 Buscar en el manual..." />
+          </div>
+          <div class="manual-toc" id="manual-toc"></div>
+        </aside>
+        <main class="manual-content">
+          <div class="manual-content-header">
+            <div style="font-size:.78rem;color:#64748b;">Selecciona una sección del menú</div>
+            <div style="display:flex;gap:6px;">
+              <button class="manual-btn" onclick="window.print()" title="Imprimir / Guardar como PDF">🖨 Imprimir</button>
+              <button class="manual-btn primary" onclick="closeManual()">✕ Cerrar</button>
+            </div>
+          </div>
+          <div class="manual-body" id="manual-body">
+            <h3>👋 Bienvenido</h3>
+            <p>Selecciona una sección del menú lateral para empezar.</p>
+          </div>
+        </main>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Click fuera = cerrar
+    modal.addEventListener('click',e=>{
+      if(e.target===modal)closeManual();
+    });
+    
+    // Renderizar TOC
+    renderManualTOC(MANUAL_SECTIONS);
+    
+    // Búsqueda
+    document.getElementById('manual-search-input').addEventListener('input',e=>{
+      const q=e.target.value.trim().toLowerCase();
+      if(!q){renderManualTOC(MANUAL_SECTIONS);return;}
+      const filtered=MANUAL_SECTIONS.filter(s=>
+        s.title.toLowerCase().includes(q)||
+        s.content.toLowerCase().includes(q)
+      );
+      renderManualTOC(filtered);
+    });
+  }
+  modal.classList.add('open');
+  // Abrir primera sección por default si no hay activa
+  if(!modal.querySelector('.manual-toc-item.active')){
+    showManualSection(MANUAL_SECTIONS[0].id);
+  }
+}
+
+function renderManualTOC(sections){
+  const toc=document.getElementById('manual-toc');
+  if(!toc)return;
+  if(!sections.length){
+    toc.innerHTML='<div style="padding:20px;text-align:center;color:#94a3b8;font-size:.85rem;">Sin resultados</div>';
+    return;
+  }
+  toc.innerHTML=sections.map(s=>`
+    <div class="manual-toc-item" data-id="${s.id}" onclick="showManualSection('${s.id}')">
+      <span style="font-size:1.1rem;">${s.icon}</span>
+      <span>${s.title}</span>
+    </div>
+  `).join('');
+}
+
+function showManualSection(id){
+  const sec=MANUAL_SECTIONS.find(s=>s.id===id);
+  if(!sec)return;
+  document.querySelectorAll('#modal-manual .manual-toc-item').forEach(el=>{
+    el.classList.toggle('active',el.dataset.id===id);
+  });
+  document.getElementById('manual-body').innerHTML=sec.content;
+  // Scroll al inicio del contenido
+  const body=document.getElementById('manual-body');
+  if(body)body.scrollTop=0;
+}
+
+function closeManual(){
+  const m=document.getElementById('modal-manual');
+  if(m)m.classList.remove('open');
+}
+
+// Wire del botón ?
+setTimeout(()=>{
+  const btnHelp=document.getElementById('btn-help');
+  if(btnHelp)btnHelp.addEventListener('click',openManual);
+  // Atajo F1 o ? para abrir manual
+  document.addEventListener('keydown',e=>{
+    if(e.key==='F1'){e.preventDefault();openManual();}
+    if(e.key==='Escape'){
+      const m=document.getElementById('modal-manual');
+      if(m&&m.classList.contains('open'))closeManual();
+    }
+  });
+},200);
 </script>
 
 <footer class="app-footer">
