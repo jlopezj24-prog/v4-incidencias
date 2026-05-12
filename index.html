@@ -123,9 +123,9 @@
     .btn-cancel { background:none; color:#64748b; border:1px solid #e2e8f0; padding:9px 18px; border-radius:8px; cursor:pointer; font-size:.88rem; transition:background .18s; }
     .btn-cancel:hover { background:#f8fafc; }
     /* SETUP MODAL */
-    .setup-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.85); z-index:2000; align-items:center; justify-content:center; }
+    .setup-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.85); z-index:2000; align-items:center; justify-content:center; padding:20px; }
     .setup-overlay.open { display:flex; }
-    .setup-box { background:white; border-radius:20px; padding:32px; width:480px; max-width:95vw; box-shadow:0 24px 80px rgba(0,0,0,.4); }
+    .setup-box { background:white; border-radius:20px; padding:32px; width:480px; max-width:95vw; max-height:92vh; overflow-y:auto; box-shadow:0 24px 80px rgba(0,0,0,.4); }
     .setup-box h2 { font-size:1.25rem; font-weight:800; color:#0f172a; margin-bottom:4px; }
     .setup-box .setup-sub { font-size:.83rem; color:#64748b; margin-bottom:24px; }
     .setup-label { font-size:.8rem; font-weight:600; color:#334155; margin-bottom:5px; display:block; }
@@ -580,6 +580,7 @@
 
 <!-- ALERTAS PENDIENTES -->
 <section id="panel-alertas" class="tab-panel">
+  <div id="alerts-formats-week" style="margin-bottom:16px;"></div>
   <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
     <h2 style="font-size:1.2rem;font-weight:800;color:#0f172a;margin:0;">&#128276; Alertas de Vacaciones Pendientes</h2>
     <div style="display:flex;gap:8px;">
@@ -594,7 +595,7 @@
 
 <!-- CALENDARIO -->
 <section id="panel-calendario" class="tab-panel active">
-  <div id="cal-summary-bar" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;"></div>
+  <div id="cal-summary-bar" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
   <div class="cal-controls">
     <div class="month-nav">
       <button class="nav-btn" id="btn-prev">&#8249;</button>
@@ -1463,17 +1464,18 @@ function renderCalendar(){
     // Aniversarios del mes
     const annivs=(typeof loadAnniversaries==='function'?loadAnniversaries():[]).filter(a=>a.month===(curMonth+1)).length;
     
-    const card=(icon,label,value,color)=>`<div style="flex:1;min-width:140px;background:white;border:1.5px solid ${color}33;border-left:4px solid ${color};border-radius:10px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04);">
-      <div style="font-size:.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">${icon} ${label}</div>
-      <div style="font-size:1.5rem;font-weight:800;color:${color};line-height:1.1;margin-top:2px;">${value}</div>
+    const card=(icon,label,value,color)=>`<div style="display:inline-flex;align-items:center;gap:6px;background:white;border:1px solid ${color}44;border-left:3px solid ${color};border-radius:7px;padding:4px 10px;box-shadow:0 1px 2px rgba(0,0,0,.03);">
+      <span style="font-size:.95rem;line-height:1;">${icon}</span>
+      <span style="font-size:.7rem;color:#64748b;font-weight:600;">${label}:</span>
+      <span style="font-size:.92rem;font-weight:800;color:${color};line-height:1;">${value}</span>
     </div>`;
     
     sumBar.innerHTML=
-      card('👥','Colaboradores',collabs.length,'#1e40af')+
-      card('🏷','Equipos',teams.size+(noTeam?` <span style="font-size:.7rem;font-weight:600;color:#94a3b8;">(+${noTeam} s/eq)</span>`:''),'#7c3aed')+
+      card('👥','Colab.',collabs.length,'#1e40af')+
+      card('🏷','Equipos',teams.size+(noTeam?` <span style="font-size:.65rem;font-weight:600;color:#94a3b8;">(+${noTeam})</span>`:''),'#7c3aed')+
       card('⭐','LETs',letCount,'#f59e0b')+
-      card('🎂','Cumples del mes',bdays,'#ec4899')+
-      card('🎉','Aniversarios',annivs,'#16a34a');
+      card('🎂','Cumples',bdays,'#ec4899')+
+      card('🎉','Aniv.',annivs,'#16a34a');
   }
   
   // Mapa de cumpleaños del mes: {normalizedName -> Set(días)}
@@ -1497,11 +1499,17 @@ function renderCalendar(){
     });
   }
 
-  // pre-compute day totals
+  // pre-compute day totals + asistencia
   const dayTotals={};
+  const dayAbsences={};
+  const totalCollabs=collabs.length;
   for(let d=1;d<=total;d++){
     const key=dk(curYear,curMonth+1,d);
-    dayTotals[d]=data.incidents[key]?Object.keys(data.incidents[key]).length:0;
+    const dayInc=data.incidents[key]||{};
+    dayTotals[d]=Object.keys(dayInc).length;
+    let abs=0;
+    Object.values(dayInc).forEach(id=>{ if(ABSENCE_TYPES.has(id))abs++; });
+    dayAbsences[d]=abs;
   }
 
   let head="<thead><tr><th>Colaborador</th>";
@@ -1573,6 +1581,25 @@ function renderCalendar(){
       const t=dayTotals[d];
       const cls=t===0?"zero":t<=2?"ok":t<=5?"warn":"crit";
       body+=`<td><span class="tot-chip ${cls}">${t||"·"}</span></td>`;
+    }
+    body+="</tr>";
+
+    // % asistencia row
+    body+=`<tr class="totals-row"><td>% Asistencia</td>`;
+    for(let d=1;d<=total;d++){
+      const dow=new Date(curYear,curMonth+1-1,d).getDay();
+      const key=dk(curYear,curMonth+1,d);
+      const wk=!isWorkDay(dow,key);
+      if(wk||totalCollabs===0){
+        body+=`<td><span class="tot-chip zero" style="opacity:.4;">—</span></td>`;
+        continue;
+      }
+      const abs=dayAbsences[d]||0;
+      const pct=Math.round(((totalCollabs-abs)/totalCollabs)*100);
+      let bg="#16a34a",fg="white"; // verde
+      if(pct<85){bg="#dc2626";} // rojo
+      else if(pct<95){bg="#f59e0b";} // ambar
+      body+=`<td><span class="tot-chip" style="background:${bg};color:${fg};font-weight:700;" title="${totalCollabs-abs}/${totalCollabs} presentes">${pct}%</span></td>`;
     }
     body+="</tr>";
   }
@@ -4845,9 +4872,117 @@ Por favor revisa esta situación.`,"color: #dc2626; font-weight: bold;");
 }
 
 /**
+ * Renderiza un panel con todos los formatos pendientes de la SEMANA ACTUAL
+ * (lunes a domingo en curso). Aparece arriba de las alertas de vacaciones.
+ */
+function renderWeekPendingFormats(){
+  const el=document.getElementById("alerts-formats-week");
+  if(!el)return;
+  const data=load();
+  
+  // Calcular rango: lunes a domingo de la semana actual
+  const now=new Date();
+  const dow=now.getDay(); // 0=dom,1=lun,...,6=sab
+  const offsetToMon=dow===0?-6:1-dow; // si es domingo, lunes fue hace 6 días
+  const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()+offsetToMon);
+  const sunday=new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+6);
+  const fromKey=dk(monday.getFullYear(),monday.getMonth()+1,monday.getDate());
+  const toKey  =dk(sunday.getFullYear(),sunday.getMonth()+1,sunday.getDate());
+  const todayKey=dk(now.getFullYear(),now.getMonth()+1,now.getDate());
+  
+  // Recolectar pendientes
+  const pendings=[];
+  Object.keys(data.incidents||{}).forEach(date=>{
+    if(date<fromKey||date>toKey)return;
+    const dayData=data.incidents[date]||{};
+    Object.keys(dayData).forEach(name=>{
+      const incId=dayData[name];
+      if(!FORMAT_REQUIRED.has(incId))return;
+      const delivered=data.formats&&data.formats[date]&&data.formats[date][name];
+      if(delivered)return;
+      const inc=INC_MAP[incId];
+      const [yy,mm,dd]=date.split("-").map(Number);
+      const dObj=new Date(yy,mm-1,dd);
+      const diffDays=Math.floor((now-dObj)/(1000*60*60*24));
+      pendings.push({date,name,incId,incName:inc?inc.name:incId,color:inc?inc.color:"#94a3b8",daysAgo:diffDays,dObj});
+    });
+  });
+  
+  if(!pendings.length){
+    el.innerHTML=`<div class="card" style="padding:14px 18px;background:#ecfdf5;border-left:4px solid #10b981;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:1.4rem;">\u2705</span>
+        <div>
+          <div style="font-weight:800;color:#064e3b;">Sin formatos pendientes esta semana</div>
+          <div style="font-size:.78rem;color:#047857;">Semana del ${monday.getDate()} ${MONTHS[monday.getMonth()].slice(0,3)} al ${sunday.getDate()} ${MONTHS[sunday.getMonth()].slice(0,3)}</div>
+        </div>
+      </div>
+    </div>`;
+    return;
+  }
+  
+  // Orden cronológico
+  pendings.sort((a,b)=>a.date.localeCompare(b.date));
+  
+  // Resumen por tipo
+  const byType={};
+  pendings.forEach(p=>{ byType[p.incId]=(byType[p.incId]||0)+1; });
+  const summary=Object.keys(byType).map(t=>{
+    const inc=INC_MAP[t];
+    return `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:${inc?inc.color:'#94a3b8'};color:white;font-size:.74rem;font-weight:700;">${t} \u00b7 ${byType[t]}</span>`;
+  }).join(" ");
+  
+  const rowsHtml=pendings.map(p=>{
+    const [yy,mm,dd]=p.date.split("-").map(Number);
+    const dObj=new Date(yy,mm-1,dd);
+    const dateStr=`${dd} ${MONTHS[mm-1].slice(0,3)} (${WDAYS[dObj.getDay()]})`;
+    const isOverdue=p.date<todayKey;
+    const isToday=p.date===todayKey;
+    const ageBadge=isOverdue?`<span style="background:#dc2626;color:white;padding:2px 7px;border-radius:999px;font-size:.7rem;font-weight:700;">VENCIDO ${p.daysAgo}d</span>`:isToday?`<span style="background:#f59e0b;color:white;padding:2px 7px;border-radius:999px;font-size:.7rem;font-weight:700;">HOY</span>`:`<span style="background:#3b82f6;color:white;padding:2px 7px;border-radius:999px;font-size:.7rem;font-weight:700;">PR\u00d3XIMO</span>`;
+    const typeBadge=`<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:${p.color};color:white;font-size:.72rem;font-weight:700;">${p.incId}</span>`;
+    const safeName=String(p.name).replace(/'/g,"\\'");
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:${isOverdue?'#fef2f2':isToday?'#fffbeb':'white'};flex-wrap:wrap;">
+      <div style="flex:0 0 100px;font-size:.78rem;color:#64748b;font-weight:600;">${dateStr}</div>
+      <div style="flex:0 0 60px;">${typeBadge}</div>
+      <div style="flex:1;min-width:140px;font-weight:600;color:#0f172a;font-size:.88rem;">${esc(p.name)}</div>
+      <div style="flex:0 0 130px;text-align:right;">${ageBadge}</div>
+      <button onclick="markFormatDeliveredFromAlert('${p.date}','${safeName}')" style="padding:5px 11px;border-radius:6px;border:1px solid #10b981;background:white;color:#059669;font-size:.74rem;font-weight:700;cursor:pointer;" title="Marcar formato como entregado a RH">\u2713 Entregado</button>
+    </div>`;
+  }).join("");
+  
+  el.innerHTML=`<div class="card" style="padding:0;overflow:hidden;border:1px solid #fecaca;">
+    <div style="padding:14px 18px;background:linear-gradient(135deg,#fef2f2,#fee2e2);border-bottom:1px solid #fecaca;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <span style="font-size:1.6rem;">\ud83d\udcdd</span>
+      <div style="flex:1;min-width:200px;">
+        <div style="font-weight:800;color:#7f1d1d;font-size:1.05rem;">Formatos pendientes esta semana \u00b7 ${pendings.length}</div>
+        <div style="font-size:.78rem;color:#991b1b;">Del ${monday.getDate()} ${MONTHS[monday.getMonth()].slice(0,3)} al ${sunday.getDate()} ${MONTHS[sunday.getMonth()].slice(0,3)}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">${summary}</div>
+    </div>
+    <div>${rowsHtml}</div>
+  </div>`;
+}
+
+/* Marca un formato como entregado desde el panel de alertas y refresca */
+function markFormatDeliveredFromAlert(date,name){
+  const data=load();
+  if(!data.formats)data.formats={};
+  if(!data.formats[date])data.formats[date]={};
+  data.formats[date][name]=true;
+  save(data);
+  renderWeekPendingFormats();
+  if(typeof renderCalendar==="function")renderCalendar();
+  if(typeof renderRhPending==="function")renderRhPending();
+  showToast("\u2713 Formato marcado como entregado");
+}
+
+/**
  * Renderizar lista de alertas en el panel dedicado
  */
 function renderAlertsList(filter="all"){
+  // Renderizar primero los formatos pendientes de la semana
+  renderWeekPendingFormats();
+  
   const el=document.getElementById("alerts-list");
   if(!el)return;
   
