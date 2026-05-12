@@ -5,10 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V4 Vestiduras — Control de Incidencias</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; min-height: 100vh; }
-    .app-header { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%); color:white; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 12px rgba(0,0,0,.35); }
+    /* Colores corporativos GM (default). Se sobreescriben con CSS vars desde "Mi Línea". */
+    :root {
+      --gm-header-1: #0f172a;
+      --gm-header-2: #1e3a5f;
+      --gm-accent:   #1e40af;
+    }
+    .app-header { background: linear-gradient(135deg, var(--gm-header-1) 0%, var(--gm-header-2) 100%); color:white; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 12px rgba(0,0,0,.35); }
     .app-header h1 { font-size:1.35rem; font-weight:800; letter-spacing:.4px; }
     .app-header .sub { font-size:.78rem; opacity:.65; margin-top:2px; }
     .header-date { font-size:.8rem; opacity:.65; text-align:right; }
@@ -84,9 +92,13 @@
     .coll-header h2 { font-size:1rem; font-weight:700; color:#0f172a; }
     .btn-primary { background:#1e40af; color:white; border:none; padding:9px 18px; border-radius:8px; cursor:pointer; font-size:.88rem; font-weight:500; transition:background .2s; }
     .btn-primary:hover { background:#1d3a9e; }
-    .coll-item { display:flex; align-items:center; padding:11px 16px; border-bottom:1px solid #e2e8f0; transition:background .14s; }
+    .coll-item { display:flex; align-items:center; padding:11px 16px; border-bottom:1px solid #e2e8f0; transition:background .14s; cursor:move; user-select:none; }
     .coll-item:last-child { border-bottom:none; }
     .coll-item:hover { background:#f8fafc; }
+    .coll-item.dragging { opacity:.5; background:#eff6ff; }
+    .coll-item.drag-over { border-top:3px solid #1e40af; }
+    .drag-handle { margin-right:8px; color:#94a3b8; font-size:1rem; cursor:grab; }
+    .drag-handle:active { cursor:grabbing; }
     .coll-num { font-size:.74rem; color:#94a3b8; min-width:28px; }
     .coll-name-txt { flex:1; font-weight:500; margin:0 12px; }
     .btn-del { background:none; color:#ef4444; border:none; cursor:pointer; padding:5px 9px; border-radius:6px; font-size:.82rem; transition:background .14s; }
@@ -129,54 +141,97 @@
     .btn-setup-save:hover { opacity:.9; }
     .btn-settings { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); color:white; padding:6px 10px; border-radius:7px; cursor:pointer; font-size:.8rem; transition:background .18s; margin-left:6px; }
     .btn-settings:hover { background:rgba(255,255,255,.25); }
-    @media(max-width:640px){
+    @media(max-width:900px){
       /* HEADER */
-      .app-header { padding:10px 14px; gap:8px; flex-wrap:wrap; }
-      .app-header h1 { font-size:1rem; }
-      .app-header .sub { font-size:.7rem; }
-      .gm-logo img { width:36px; height:36px; }
-      .header-right { flex-direction:row; align-items:center; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+      .app-header { padding:10px 16px; flex-wrap:wrap; gap:10px; }
+      .gm-logo img { width:40px; height:40px; }
+      .gm-logo h1 { font-size:1rem; }
+      .sub { font-size:.7rem; }
       .header-date { display:none; }
-      .sync-btn { font-size:.72rem; padding:4px 8px; }
-      .btn-settings { font-size:.72rem; padding:4px 7px; }
-      /* TABS — scroll horizontal */
-      .tabs { padding:0 8px; overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-      .tabs::-webkit-scrollbar { display:none; }
-      .tab { padding:10px 12px; font-size:.78rem; white-space:nowrap; flex-shrink:0; }
+      .sync-btn { font-size:.72rem; padding:6px 10px; }
+      .btn-settings { font-size:.72rem; padding:6px 10px; min-width:auto; }
+      .btn-notif { width:44px; height:44px; font-size:1.2rem; }
+      
+      /* MENÚ HAMBURGUESA */
+      .mobile-menu-btn { display:block; }
+      .tabs { position:fixed; left:-100%; top:0; bottom:0; width:280px; max-width:85vw; background:white; flex-direction:column; padding:60px 0 20px; overflow-y:auto; box-shadow:4px 0 12px rgba(0,0,0,.15); transition:left .3s ease; z-index:9999; border-right:1px solid #e2e8f0; border-bottom:none; }
+      .tabs.show { left:0; }
+      .tabs::-webkit-scrollbar { width:6px; }
+      .tabs::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+      .tab { padding:16px 20px; font-size:.9rem; white-space:normal; flex-shrink:0; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:10px; min-height:56px; }
+      .tab.active { background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%); color:white; border-left:4px solid #1e3a8a; }
+      .tab:not(.active):active { background:#f1f5f9; }
+      
+      /* BOTONES MÁS GRANDES PARA DEDOS */
+      button, .btn, .modal-btn { min-height:44px; min-width:44px; padding:10px 16px; font-size:.9rem; }
+      .ic-btn { min-width:44px; min-height:44px; font-size:.85rem; }
+      .month-btn { width:44px; height:44px; font-size:1.2rem; }
+      .legend .leg-item { padding:8px 14px; font-size:.8rem; min-height:40px; }
+      
       /* PANELS */
-      .tab-panel { padding:10px 10px; }
-      /* CALENDAR CONTROLS */
-      .cal-controls { flex-direction:column; align-items:stretch; gap:8px; }
-      .month-nav { justify-content:center; }
-      .month-label { font-size:.95rem; min-width:0; }
-      .legend { gap:5px; }
-      .leg-item { font-size:.7rem; padding:3px 8px; }
-      /* CALENDAR TABLE — reduce name column */
-      #cal-table th:first-child, #cal-table td:first-child { min-width:110px; max-width:140px; padding:5px 7px; font-size:.72rem; }
-      .ic-cell { min-width:32px; }
+      .tab-panel { padding:16px 12px; }
+      
+      /* CALENDAR - OPTIMIZADO PARA TOUCH */
+      .cal-controls { flex-direction:column; align-items:stretch; gap:12px; }
+      .month-nav { justify-content:center; gap:12px; }
+      .month-label { font-size:1.05rem; min-width:0; padding:8px 12px; }
+      .legend { gap:8px; flex-wrap:wrap; }
+      
+      /* TABLA CALENDARIO */
+      #cal-table th:first-child, #cal-table td:first-child { min-width:100px; max-width:130px; padding:8px 6px; font-size:.75rem; }
+      .ic-cell { min-width:38px; padding:4px 2px; }
       .cal-search-wrap { width:100%; }
+      .cal-search { min-height:44px; font-size:.9rem; }
+      
       /* MODAL */
-      .modal-box { min-width:0; width:calc(100vw - 32px); padding:18px 16px; }
-      .modal-box.wide { min-width:0; max-width:calc(100vw - 32px); }
+      .modal-box { min-width:0; width:calc(100vw - 24px); padding:20px 16px; max-height:90vh; overflow-y:auto; }
+      .modal-box.wide { min-width:0; max-width:calc(100vw - 24px); }
+      .modal-title { font-size:1.1rem; }
+      
       /* SETUP */
-      .setup-box { padding:22px 16px; }
-      .setup-radio-group { flex-direction:column; }
+      .setup-box { padding:24px 16px; }
+      .setup-radio-group { flex-direction:column; gap:12px; }
+      .setup-radio-item { min-height:48px; padding:12px 16px; }
+      
+      /* RH / RESUMEN */
+      .rh-card, .summ-card { padding:14px; }
+      .rh-name, .summ-name { font-size:.9rem; }
+      
+      /* ALERTAS */
+      .alert-card { padding:14px; }
+      .alert-actions button { min-height:40px; padding:8px 14px; font-size:.85rem; }
+      
+      /* GRÁFICAS */
+      .chart-wrapper { height:280px; }
+      .chart-title { font-size:.95rem; }
+      .chart-subtitle { font-size:.72rem; }
+      
+      /* EVIDENCIAS */
+      .evidence-grid { grid-template-columns:1fr; }
+      .evidence-filters { flex-direction:column; }
+      .evidence-filters select, .evidence-filters input { min-width:0; width:100%; }
+      
       /* RH / RESUMEN */
       #rh-filters { flex-direction:column !important; gap:8px !important; }
       #rh-filters select, #rh-filters input { width:100%; }
       #rep-cards { gap:7px; }
       .rep-card { min-width:80px; padding:10px 12px; flex:1; }
+      
       /* RANKING */
       .ranking-row { flex-wrap:wrap; gap:4px; }
       .rank-name { font-size:.78rem; }
+      
       /* PLANEACION */
       .plan-wrap { overflow-x:auto; }
+      
       /* BUTTONS */
       .nav-btn { width:40px; height:40px; font-size:1.3rem; }
       .today-btn { padding:8px 14px; }
       .turno-btn { padding:8px 12px; }
+      
       /* COLABORADORES */
       .coll-actions { flex-wrap:wrap; }
+      
       /* REPORTE */
       .rep-row { flex-wrap:wrap; gap:4px; font-size:.8rem; }
     }
@@ -294,6 +349,24 @@
     .sync-dot.error  { background:#f87171; }
     .sync-dot.off    { background:#94a3b8; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    /* NOTIFICATION BADGE */
+    .notif-badge { position:absolute; top:-4px; right:-8px; background:#ef4444; color:white; font-size:.65rem; font-weight:800; padding:1px 5px; border-radius:10px; min-width:18px; text-align:center; box-shadow:0 2px 6px rgba(239,68,68,.4); animation:pulse-badge .8s infinite; }
+    @keyframes pulse-badge { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+    .btn-notif { position:relative; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); color:white; padding:6px 10px; border-radius:7px; cursor:pointer; font-size:.8rem; transition:background .18s; margin-left:6px; display:flex; align-items:center; gap:5px; }
+    .btn-notif:hover { background:rgba(255,255,255,.25); }
+    /* ALERT ACTIONS */
+    .alert-actions { display:flex; gap:8px; margin-top:10px; }
+    .btn-approve { background:#16a34a; color:white; border:none; padding:6px 14px; border-radius:6px; font-size:.78rem; font-weight:600; cursor:pointer; transition:background .2s; }
+    .btn-approve:hover { background:#15803d; }
+    .btn-reject { background:#dc2626; color:white; border:none; padding:6px 14px; border-radius:6px; font-size:.78rem; font-weight:600; cursor:pointer; transition:background .2s; }
+    .btn-reject:hover { background:#b91c1c; }
+    .btn-email { background:#1e40af; color:white; border:none; padding:6px 14px; border-radius:6px; font-size:.78rem; font-weight:600; cursor:pointer; transition:background .2s; display:flex; align-items:center; gap:4px; }
+    .btn-email:hover { background:#1d4ed8; }
+    .alert-status { display:inline-block; padding:3px 10px; border-radius:12px; font-size:.72rem; font-weight:700; margin-left:8px; }
+    .alert-status.approved { background:#dcfce7; color:#166534; }
+    .alert-status.rejected { background:#fee2e2; color:#991b1b; }
+    .alert-status.pending { background:#fef9c3; color:#92400e; }
+    .alert-timestamp { font-size:.7rem; color:#94a3b8; margin-top:4px; font-style:italic; }
     /* VISTA MENSUAL */
     #panel-vista { padding:0; }
     .vista-header { display:flex; align-items:center; gap:10px; padding:14px 20px 10px; background:#fff; border-bottom:1px solid #e2e8f0; flex-wrap:wrap; }
@@ -321,6 +394,18 @@
     .wk-shift.dia   { background:#0ea5e9; color:white; }
     .wk-shift.noche { background:#f59e0b; color:white; }
     .wk-shift.mixto { background:#8b5cf6; color:white; }
+    /* CHARTS */
+    .chart-container { background:white; border-radius:12px; padding:20px; margin-bottom:18px; box-shadow:0 1px 4px rgba(0,0,0,.09); }
+    .chart-title { font-size:1rem; font-weight:700; color:#0f172a; margin-bottom:4px; }
+    .chart-subtitle { font-size:.76rem; color:#64748b; margin-bottom:16px; }
+    .chart-wrapper { position:relative; height:320px; }
+    .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
+    @media(max-width:1024px){ .charts-grid { grid-template-columns:1fr; } }
+    /* Mobile navigation */
+    .mobile-menu-btn { display:none; position:fixed; bottom:20px; right:20px; z-index:9999; width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%); color:white; border:none; font-size:24px; cursor:pointer; box-shadow:0 4px 12px rgba(30,64,175,.4); transition:all .3s ease; }
+    .mobile-menu-btn:active { transform:scale(.95); }
+    .tabs-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9998; opacity:0; transition:opacity .3s; }
+    .tabs-overlay.show { opacity:1; }
     /* Fullscreen mode */
     #panel-vista.fullscreen { position:fixed; inset:0; z-index:9999; background:#fff; overflow-y:auto; padding:0; }
     #panel-vista.fullscreen .vcal td { height:110px; }
@@ -357,9 +442,14 @@
     .wd-num { min-width:30px; text-align:right; font-weight:700; color:#64748b; font-size:.78rem; }
     .pat-alert { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; margin-bottom:8px; background:#fefce8; border:1px solid #fde68a; font-size:.8rem; }
     .pat-alert.red { background:#fff1f2; border-color:#fecaca; }
+    .pat-alert.vac { background:#eff6ff; border:1px solid #93c5fd; }
+    .pat-alert.vac-critical { background:#fef2f2; border:1.5px solid #fca5a5; }
     .pat-icon { font-size:1.1rem; flex-shrink:0; }
     .pat-msg { color:#374151; line-height:1.5; }
     .pat-msg b { color:#1e293b; }
+    .vac-collab-list { margin-top:6px; padding-left:0; }
+    .vac-collab-item { display:inline-block; background:#dbeafe; color:#1e40af; padding:3px 9px; border-radius:12px; font-size:.74rem; font-weight:600; margin:2px 3px; }
+    .vac-dates { color:#64748b; font-size:.75rem; margin-top:4px; font-style:italic; }
     /* REPORTE COLABORADOR */
     .rep-card { background:white; border-radius:10px; border:1.5px solid #e2e8f0; padding:12px 18px; min-width:110px; text-align:center; }
     .rep-card .rc-count { font-size:2rem; font-weight:800; line-height:1; }
@@ -398,6 +488,45 @@
     .cloud-steps a { color:#1e40af; }
     .field-label { font-size:.78rem; font-weight:600; color:#374151; margin-bottom:4px; display:block; }
     .field-group { margin-bottom:12px; }
+    /* EVIDENCIAS RH */
+    .evidence-upload { border:2px dashed #cbd5e1; border-radius:12px; padding:32px 20px; text-align:center; background:#f8fafc; cursor:pointer; transition:all .3s; margin-bottom:20px; }
+    .evidence-upload:hover, .evidence-upload.drag-over { border-color:#1e40af; background:#eff6ff; }
+    .evidence-upload-icon { font-size:3rem; color:#94a3b8; margin-bottom:12px; }
+    .evidence-upload-text { font-size:.95rem; color:#475569; font-weight:600; margin-bottom:6px; }
+    .evidence-upload-hint { font-size:.8rem; color:#94a3b8; }
+    .evidence-filters { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+    .evidence-filters select, .evidence-filters input { padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:.85rem; flex:1; min-width:180px; }
+    .evidence-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+    .evidence-card { background:white; border:1px solid #e2e8f0; border-radius:12px; padding:16px; transition:all .3s; position:relative; }
+    .evidence-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.1); transform:translateY(-2px); }
+    .evidence-preview { width:100%; height:180px; background:#f1f5f9; border-radius:8px; display:flex; align-items:center; justify-content:center; margin-bottom:12px; overflow:hidden; position:relative; }
+    .evidence-preview img { width:100%; height:100%; object-fit:cover; }
+    .evidence-preview-icon { font-size:3rem; color:#cbd5e1; }
+    .evidence-type-badge { position:absolute; top:8px; right:8px; padding:4px 10px; border-radius:6px; font-size:.7rem; font-weight:700; color:white; }
+    .badge-psg { background:#f59e0b; }
+    .badge-sancion { background:#dc2626; }
+    .badge-fi { background:#ef4444; }
+    .evidence-info { font-size:.85rem; }
+    .evidence-name { font-weight:700; color:#0f172a; margin-bottom:4px; }
+    .evidence-date { color:#64748b; font-size:.8rem; margin-bottom:8px; }
+    .evidence-actions { display:flex; gap:8px; margin-top:12px; }
+    .evidence-actions button { flex:1; padding:6px 12px; border-radius:6px; font-size:.8rem; font-weight:600; cursor:pointer; transition:all .2s; }
+    .btn-view { background:#eff6ff; color:#1e40af; border:none; }
+    .btn-view:hover { background:#dbeafe; }
+    .btn-delete-ev { background:#fee2e2; color:#dc2626; border:none; }
+    .btn-delete-ev:hover { background:#fecaca; }
+    .evidence-empty { text-align:center; padding:60px 20px; color:#94a3b8; }
+    .evidence-empty-icon { font-size:4rem; margin-bottom:16px; opacity:.5; }
+    
+    /* Responsive tablets (768-1024px) */
+    @media(min-width:768px) and (max-width:1024px){
+      .tab-panel { padding:20px 16px; }
+      #cal-table th:first-child, #cal-table td:first-child { min-width:140px; font-size:.82rem; }
+      .ic-cell { min-width:42px; }
+      .modal-box { width:90vw; max-width:700px; }
+      .charts-grid { grid-template-columns:1fr; gap:16px; }
+      .chart-wrapper { height:300px; }
+    }
   </style>
 </head>
 <body>
@@ -412,6 +541,10 @@
   </div>
   <div class="header-right">
     <div class="header-date" id="hdr-date"></div>
+    <button class="btn-notif" id="btn-notifications" title="Ver alertas pendientes">
+      &#128276;
+      <span id="notif-count" class="notif-badge" style="display:none;">0</span>
+    </button>
     <button class="btn-settings" id="btn-open-setup" title="Configurar línea">&#9881; Mi L&iacute;nea</button>
     <button class="sync-btn" id="btn-sync-status" title="Configurar sincronización en la nube">
       <span class="sync-dot off" id="sync-dot"></span>
@@ -420,19 +553,48 @@
   </div>
 </header>
 
-<nav class="tabs">
+<!-- Botón menú hamburguesa móvil -->
+<button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menú de navegación">
+  &#9776;
+</button>
+
+<!-- Overlay para cerrar menú -->
+<div class="tabs-overlay" id="tabs-overlay"></div>
+
+<nav class="tabs" id="nav-tabs">
   <div class="tab active" data-tab="calendario">&#128197; Calendario</div>
+  <div class="tab"        data-tab="alertas" style="position:relative;">
+    &#128276; Alertas
+    <span id="tab-notif-badge" class="notif-badge" style="display:none;top:8px;right:4px;">0</span>
+  </div>
   <div class="tab"        data-tab="planeacion">&#128336; Planeaci&#243;n</div>
   <div class="tab"        data-tab="resumen">&#128202; Resumen</div>
   <div class="tab"        data-tab="colaboradores">&#128101; Colaboradores</div>
   <div class="tab"        data-tab="rh">&#128203; RH Pendientes</div>
+  <div class="tab"        data-tab="evidencias">&#128206; Evidencias RH</div>
+  <div class="tab"        data-tab="cumpleanios">&#127874; Cumplea&#241;os</div>
   <div class="tab"        data-tab="vista">&#128444; Vista Mensual</div>
   <div class="tab"        data-tab="reporte">&#128100; Reporte Colaborador</div>
   <div class="tab"        data-tab="analisis">&#128200; An&aacute;lisis</div>
 </nav>
 
+<!-- ALERTAS PENDIENTES -->
+<section id="panel-alertas" class="tab-panel">
+  <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <h2 style="font-size:1.2rem;font-weight:800;color:#0f172a;margin:0;">&#128276; Alertas de Vacaciones Pendientes</h2>
+    <div style="display:flex;gap:8px;">
+      <button onclick="filterAlerts('pending')" style="padding:6px 14px;border:1.5px solid #f59e0b;border-radius:8px;background:white;color:#f59e0b;font-size:.82rem;font-weight:600;cursor:pointer;">Pendientes</button>
+      <button onclick="filterAlerts('approved')" style="padding:6px 14px;border:1.5px solid #16a34a;border-radius:8px;background:white;color:#16a34a;font-size:.82rem;font-weight:600;cursor:pointer;">Aprobadas</button>
+      <button onclick="filterAlerts('rejected')" style="padding:6px 14px;border:1.5px solid:#dc2626;border-radius:8px;background:white;color:#dc2626;font-size:.82rem;font-weight:600;cursor:pointer;">Rechazadas</button>
+      <button onclick="filterAlerts('all')" style="padding:6px 14px;border:1.5px solid #64748b;border-radius:8px;background:white;color:#64748b;font-size:.82rem;font-weight:600;cursor:pointer;">Todas</button>
+    </div>
+  </div>
+  <div class="card" id="alerts-list" style="padding:0;"></div>
+</section>
+
 <!-- CALENDARIO -->
 <section id="panel-calendario" class="tab-panel active">
+  <div id="cal-summary-bar" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;"></div>
   <div class="cal-controls">
     <div class="month-nav">
       <button class="nav-btn" id="btn-prev">&#8249;</button>
@@ -491,6 +653,7 @@
       <button class="btn-import" id="btn-import-excel">&#128194; Importar desde Excel</button>
       <input type="file" id="file-excel-input" accept=".xlsx,.xls,.csv" style="display:none" />
       <button class="btn-primary" id="btn-add-collab">+ Agregar Colaborador</button>
+      <button onclick="resetCollabOrder()" style="background:#8b5cf6;color:white;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:5px;" title="Restablecer orden automático">↻ Restablecer Orden</button>
       <button onclick="exportBackup()" style="background:#065f46;color:white;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:5px;" title="Descargar todos los datos como archivo de respaldo">&#11015; Backup JSON</button>
       <label style="background:#1e3a8a;color:white;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:5px;" title="Restaurar datos desde un backup previo">&#11014; Restaurar Backup<input type="file" accept=".json" style="display:none" onchange="importBackup(this.files[0]);this.value=''" /></label>
       <button onclick="openClearAllModal()" style="background:#dc2626;color:white;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:5px;" title="Eliminar todos los colaboradores e incidencias">&#128465; Borrar todo</button>
@@ -570,6 +733,80 @@
   <div class="card" id="rh-list"></div>
 </section>
 
+<!-- EVIDENCIAS RH -->
+<section id="panel-evidencias" class="tab-panel">
+  <div class="coll-header">
+    <h2>📎 Evidencias de Formatos RH</h2>
+    <div style="font-size:.8rem;color:#64748b;margin-top:4px;">Adjunta evidencias de permisos sin goce (PSG), sanciones y faltas injustificadas</div>
+  </div>
+
+  <!-- Área de carga de archivos -->
+  <div class="evidence-upload" id="evidence-upload">
+    <div class="evidence-upload-icon">📤</div>
+    <div class="evidence-upload-text">Arrastra archivos aquí o haz clic para seleccionar</div>
+    <div class="evidence-upload-hint">Formatos: JPG, PNG, PDF (máx. 5MB por archivo)</div>
+    <input type="file" id="evidence-file-input" accept="image/*,.pdf" multiple style="display:none;">
+  </div>
+
+  <!-- Filtros -->
+  <div class="evidence-filters">
+    <select id="evidence-filter-collab">
+      <option value="">Todos los colaboradores</option>
+    </select>
+    <select id="evidence-filter-type">
+      <option value="">Todos los tipos</option>
+      <option value="PSG">PSG - Permiso sin Goce</option>
+      <option value="SAN">SAN - Sanción</option>
+      <option value="FI">FI - Falta Injustificada</option>
+    </select>
+    <input type="month" id="evidence-filter-month" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:.85rem;">
+  </div>
+
+  <!-- Grid de evidencias -->
+  <div id="evidence-grid" class="evidence-grid"></div>
+</section>
+
+<!-- CUMPLEAÑOS -->
+<section id="panel-cumpleanios" class="tab-panel">
+  <div class="coll-header">
+    <h2>🎂 Cumpleaños y Aniversarios del Equipo</h2>
+    <div style="font-size:.8rem;color:#64748b;margin-top:4px;">Importa el numérico para obtener cumpleaños (Date of Birth) y aniversarios laborales (Hire Date)</div>
+  </div>
+
+  <div style="background:#eef2ff;border-left:4px solid #6366f1;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:.88rem;color:#1e293b;">
+    <b>📌 Instrucción:</b> Carga el <b>numérico actual</b> (archivo Excel oficial con tu personal). El sistema detectará automáticamente las columnas <code style="background:#e0e7ff;padding:1px 6px;border-radius:4px;">Worker</code>, <code style="background:#e0e7ff;padding:1px 6px;border-radius:4px;">Date of Birth</code>, <code style="background:#e0e7ff;padding:1px 6px;border-radius:4px;">Hire Date</code> y <code style="background:#e0e7ff;padding:1px 6px;border-radius:4px;">Manager</code>, y filtrará solo a los colaboradores asignados a ti según tu nombre configurado en <b>⚙ Mi Línea</b>.
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;">
+    <label for="bday-file" style="padding:9px 16px;border-radius:8px;background:#6366f1;color:white;font-size:.85rem;font-weight:700;cursor:pointer;">📥 Cargar Numérico Actual</label>
+    <input type="file" id="bday-file" accept=".xlsx,.xls,.csv" style="display:none;">
+    <button id="btn-bday-clear" style="padding:9px 16px;border-radius:8px;border:1.5px solid #ef4444;background:white;color:#ef4444;font-size:.85rem;font-weight:700;cursor:pointer;">🗑 Limpiar Todo</button>
+    <span id="bday-count" style="margin-left:auto;font-size:.85rem;color:#64748b;font-weight:600;"></span>
+  </div>
+
+  <!-- Sub-tabs Cumpleaños / Aniversarios -->
+  <div style="display:flex;gap:6px;border-bottom:2px solid #e2e8f0;margin-bottom:14px;">
+    <button class="bday-subtab active" data-subtab="bdays" style="padding:9px 18px;background:none;border:none;border-bottom:3px solid transparent;font-weight:700;color:#0f172a;cursor:pointer;font-size:.92rem;">🎂 Cumpleaños</button>
+    <button class="bday-subtab" data-subtab="annivs" style="padding:9px 18px;background:none;border:none;border-bottom:3px solid transparent;font-weight:700;color:#64748b;cursor:pointer;font-size:.92rem;">🎉 Aniversarios</button>
+  </div>
+
+  <!-- Filtro por mes -->
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+    <label style="font-size:.85rem;font-weight:600;color:#374151;">Mes:</label>
+    <select id="bday-month" style="padding:7px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:.85rem;">
+      <option value="0">Mes actual</option>
+      <option value="-1">Todos los meses</option>
+      <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+      <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+      <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+      <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+    </select>
+    <span id="bday-link-info" style="margin-left:auto;font-size:.78rem;color:#64748b;"></span>
+  </div>
+
+  <div id="bday-list" class="card"></div>
+</section>
+
 <!-- VISTA MENSUAL -->
 <section id="panel-vista" class="tab-panel">
   <div class="vista-header">
@@ -598,6 +835,54 @@
       <select id="ana-month" style="padding:5px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:.82rem;">
         <option value="">Todo el a&ntilde;o</option>
       </select>
+      <button id="btn-dashboard-pdf" style="margin-left:8px;padding:7px 14px;border-radius:8px;border:none;background:linear-gradient(135deg,#1e3a5f,#1e40af);color:white;font-size:.82rem;font-weight:700;cursor:pointer;">&#128202; Dashboard PDF</button>
+    </div>
+  </div>
+
+  <!-- Sección Comparativo Mes vs Mes -->
+  <div class="ana-section">
+    <h3 class="ana-title">&#128200; Comparativo Mes vs Mes Anterior</h3>
+    <p class="ana-subtitle">Variaci&oacute;n por tipo de incidencia respecto al mes previo</p>
+    <div id="ana-mom-compare"></div>
+  </div>
+
+  <!-- Sección Top Ausentismo -->
+  <div class="ana-section">
+    <h3 class="ana-title">&#128293; Top Ausentismo</h3>
+    <p class="ana-subtitle">Ranking de colaboradores con m&aacute;s faltas (FI + FJ) en el per&iacute;odo</p>
+    <div id="ana-top-ausentismo"></div>
+  </div>
+
+  <!-- Sección 0: Gráficas Visuales -->
+  <div style="margin-bottom:24px;">
+    <h2 style="font-size:1.3rem;font-weight:800;color:#0f172a;margin-bottom:18px;">📊 Gráficas y Estadísticas</h2>
+    
+    <!-- Tendencias Mensuales -->
+    <div class="chart-container">
+      <div class="chart-title">📈 Tendencias Mensuales</div>
+      <div class="chart-subtitle">Evolución de incidencias mes a mes en el año</div>
+      <div class="chart-wrapper">
+        <canvas id="chart-trends"></canvas>
+      </div>
+    </div>
+    
+    <!-- Top 5 y Distribución por Equipo -->
+    <div class="charts-grid">
+      <div class="chart-container">
+        <div class="chart-title">🎯 Top 5 Incidencias</div>
+        <div class="chart-subtitle">Las 5 incidencias más frecuentes del período</div>
+        <div class="chart-wrapper">
+          <canvas id="chart-top5"></canvas>
+        </div>
+      </div>
+      
+      <div class="chart-container">
+        <div class="chart-title">👥 Distribución por Equipo</div>
+        <div class="chart-subtitle">Incidencias agrupadas por equipo de trabajo</div>
+        <div class="chart-wrapper">
+          <canvas id="chart-teams"></canvas>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -629,14 +914,14 @@
     <div id="ana-patterns"></div>
   </div>
 
-  <!-- Sección 5: Comparativo entre colaboradores -->
+  <!-- Sección 4b: Alertas de Vacaciones Simultáneas -->
   <div class="ana-section">
-    <h3 class="ana-title">&#128202; Comparativo de Colaboradores</h3>
-    <p class="ana-subtitle">Tabla comparativa de incidencias por tipo para todos los colaboradores</p>
-    <div id="ana-comparativo"></div>
+    <h3 class="ana-title">&#128710; Alertas de Vacaciones Simult&aacute;neas</h3>
+    <p class="ana-subtitle">Conflictos cuando 2 o m&aacute;s del mismo equipo solicitan vacaciones al mismo tiempo</p>
+    <div id="ana-vacation-alerts"></div>
   </div>
 
-  <!-- Sección 6: Productividad por semana -->
+  <!-- Sección 5: Productividad por semana -->
   <div class="ana-section">
     <h3 class="ana-title">&#128197; Incidencias por Semana</h3>
     <p class="ana-subtitle">Distribuci&oacute;n semanal de incidencias en el per&iacute;odo seleccionado</p>
@@ -652,9 +937,67 @@
       <div class="setup-sub">Personaliza el nombre de tu l&iacute;nea. Tus datos en la nube no se modificar&aacute;n.</div>
       <label class="setup-label">Nombre de la l&iacute;nea *</label>
       <input class="setup-input" id="setup-linename" type="text" placeholder="Ej. Vestiduras 4, Motores 1..." maxlength="40" />
-      <label class="setup-label">Tu nombre (Supervisor) *</label>
-      <input class="setup-input" id="setup-supervisor" type="text" placeholder="Nombre completo" maxlength="60" />
-      <button class="btn-setup-save" onclick="saveSetup()">Guardar &#10003;</button>
+      <label class="setup-label">Coloca tu nombre completo (Supervisor) *</label>
+      <input class="setup-input" id="setup-supervisor" type="text" placeholder="Ej. Josue Emmanuel Lopez Juarez" maxlength="60" />
+      <div style="font-size:.78rem;color:#64748b;margin-top:6px;line-height:1.4;">
+        &#9888; Importante: usa tu nombre <b>tal cual aparece en el num&eacute;rico</b>. Esto se usa en la secci&oacute;n &#127874; Cumplea&ntilde;os para identificar a tus colaboradores.
+      </div>
+      
+      <label class="setup-label" style="margin-top:14px;">&#127912; Color de la barra superior</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;" id="setup-theme-options">
+        <button type="button" class="theme-swatch" data-theme="gm-default" data-c1="#0f172a" data-c2="#1e3a5f" data-acc="#1e40af" style="width:100%;display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;background:white;">
+          <span style="width:36px;height:24px;border-radius:5px;background:linear-gradient(135deg,#0f172a,#1e3a5f);"></span>
+          <span style="font-size:.85rem;font-weight:700;color:#0f172a;">GM Corporativo (default)</span>
+        </button>
+        <button type="button" class="theme-swatch" data-theme="gm-blue" data-c1="#1e40af" data-c2="#3b82f6" data-acc="#1d4ed8" style="width:48%;display:flex;align-items:center;gap:8px;padding:7px 10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;background:white;">
+          <span style="width:30px;height:22px;border-radius:5px;background:linear-gradient(135deg,#1e40af,#3b82f6);"></span>
+          <span style="font-size:.78rem;font-weight:700;color:#0f172a;">Azul GM</span>
+        </button>
+        <button type="button" class="theme-swatch" data-theme="dark" data-c1="#000000" data-c2="#1f2937" data-acc="#3b82f6" style="width:48%;display:flex;align-items:center;gap:8px;padding:7px 10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;background:white;">
+          <span style="width:30px;height:22px;border-radius:5px;background:linear-gradient(135deg,#000,#1f2937);"></span>
+          <span style="font-size:.78rem;font-weight:700;color:#0f172a;">Negro Elite</span>
+        </button>
+        <button type="button" class="theme-swatch" data-theme="green" data-c1="#064e3b" data-c2="#047857" data-acc="#059669" style="width:48%;display:flex;align-items:center;gap:8px;padding:7px 10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;background:white;">
+          <span style="width:30px;height:22px;border-radius:5px;background:linear-gradient(135deg,#064e3b,#047857);"></span>
+          <span style="font-size:.78rem;font-weight:700;color:#0f172a;">Verde Producci&oacute;n</span>
+        </button>
+        <button type="button" class="theme-swatch" data-theme="red" data-c1="#7f1d1d" data-c2="#b91c1c" data-acc="#dc2626" style="width:48%;display:flex;align-items:center;gap:8px;padding:7px 10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;background:white;">
+          <span style="width:30px;height:22px;border-radius:5px;background:linear-gradient(135deg,#7f1d1d,#b91c1c);"></span>
+          <span style="font-size:.78rem;font-weight:700;color:#0f172a;">Rojo Cardenal</span>
+        </button>
+        <button type="button" class="theme-swatch" data-theme="purple" data-c1="#4c1d95" data-c2="#6d28d9" data-acc="#7c3aed" style="width:48%;display:flex;align-items:center;gap:8px;padding:7px 10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;background:white;">
+          <span style="width:30px;height:22px;border-radius:5px;background:linear-gradient(135deg,#4c1d95,#6d28d9);"></span>
+          <span style="font-size:.78rem;font-weight:700;color:#0f172a;">P&uacute;rpura</span>
+        </button>
+        <div style="width:100%;display:flex;align-items:center;gap:8px;margin-top:6px;padding:8px 10px;border:2px dashed #cbd5e1;border-radius:8px;">
+          <span style="font-size:.78rem;color:#475569;font-weight:600;">Personalizado:</span>
+          <input type="color" id="setup-color-1" value="#0f172a" style="width:42px;height:32px;border:none;cursor:pointer;background:transparent;" title="Color izquierdo">
+          <input type="color" id="setup-color-2" value="#1e3a5f" style="width:42px;height:32px;border:none;cursor:pointer;background:transparent;" title="Color derecho">
+          <button type="button" id="setup-color-apply" style="margin-left:auto;padding:5px 10px;border-radius:6px;border:1px solid #6366f1;background:white;color:#6366f1;font-size:.75rem;font-weight:700;cursor:pointer;">Aplicar</button>
+        </div>
+      </div>
+
+      <!-- Almacenamiento + Backup -->
+      <div style="margin-top:16px;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:.82rem;font-weight:800;color:#0f172a;">&#128190; Almacenamiento local</span>
+          <span id="setup-storage-text" style="font-size:.75rem;color:#64748b;font-weight:700;">&mdash;</span>
+        </div>
+        <div style="width:100%;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+          <div id="setup-storage-bar" style="height:100%;width:0;background:linear-gradient(90deg,#10b981,#059669);transition:width .3s;"></div>
+        </div>
+        <div id="setup-storage-detail" style="font-size:.7rem;color:#94a3b8;margin-top:6px;"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          <button type="button" id="setup-btn-backup" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid #10b981;background:white;color:#059669;font-size:.78rem;font-weight:700;cursor:pointer;">&#128190; Descargar backup</button>
+          <button type="button" id="setup-btn-restore" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid #6366f1;background:white;color:#4338ca;font-size:.78rem;font-weight:700;cursor:pointer;">&#128229; Restaurar backup</button>
+          <input type="file" id="setup-restore-file" accept=".json,application/json" style="display:none;">
+        </div>
+        <div style="font-size:.7rem;color:#64748b;margin-top:6px;line-height:1.35;">
+          &#128161; Descarga tu backup peri&oacute;dicamente. Si cambias de PC o navegador, restaura desde el archivo .json.
+        </div>
+      </div>
+      
+      <button class="btn-setup-save" onclick="saveSetup()" style="margin-top:14px;">Guardar &#10003;</button>
     </div>
   </div>
 </div>
@@ -813,6 +1156,30 @@
 
     <div style="text-align:center;color:#94a3b8;font-size:.78rem;margin-bottom:14px;">— o ingresa credenciales manualmente —</div>
 
+    <!-- CONFIGURACIÓN DE ALERTAS -->
+    <div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+      <div style="font-weight:700;color:#0369a1;font-size:.88rem;margin-bottom:10px;">&#9881; Configuración de Alertas de Vacaciones</div>
+      <div class="field-group">
+        <label class="field-label">Rango de días para alertas (solo mismo día = 0)</label>
+        <select id="input-alert-range" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:.88rem;outline:none;">
+          <option value="0" selected>Mismo día exacto (0 días)</option>
+          <option value="3">± 3 días</option>
+          <option value="5">± 5 días</option>
+          <option value="7">± 7 días</option>
+          <option value="10">± 10 días</option>
+          <option value="14">± 14 días</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Mínimo de personas para alertar</label>
+        <input type="number" id="input-alert-min" min="2" max="10" value="3" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:.88rem;outline:none;" />
+      </div>
+      <div class="field-group" style="margin-bottom:0;">
+        <label class="field-label">Alertar cuando un colaborador tiene más de X faltas en el mes</label>
+        <input type="number" id="input-alert-absences" min="2" max="10" value="3" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:.88rem;outline:none;" />
+      </div>
+    </div>
+
     <!-- OPCIÓN C: Manual avanzado -->
     <div class="field-group">
       <label class="field-label">Master Key (empieza con $2b$...)</label>
@@ -827,6 +1194,13 @@
       <button class="btn-cancel" id="btn-cloud-clear" style="color:#ef4444;border-color:#ef4444;">Desactivar nube</button>
       <button class="btn-primary" id="btn-cloud-save">Guardar y Conectar</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL evidencias RH -->
+<div class="modal-overlay" id="modal-evidence">
+  <div class="modal-box wide">
+    <div id="modal-evidence-content"></div>
   </div>
 </div>
 
@@ -849,6 +1223,12 @@ const WDAYS=["Dom","Lun","Mar","Mi\u00e9","Jue","Vie","S\u00e1b"];
 const INC_MAP=Object.fromEntries(INCIDENTS.map(i=>[i.id,i]));
 const FORMAT_REQUIRED=new Set(["VAC","SAN","PSG","FJ"]);
 const STORE="v4-control-incidencias";
+const ALERTS_STORE="v4-vacation-alerts";
+const ALERT_CONFIG_STORE="v4-alert-config";
+const EVIDENCE_STORE="v4-evidencias-rh";
+const BIRTHDAYS_STORE="v4-cumpleanios";
+const ANNIVERSARIES_STORE="v4-aniversarios";
+const ABSENCE_TYPES=new Set(["FI","FJ"]); // Tipos considerados como faltas
 
 /* ── TURNO / DÍAS LABORABLES ── */
 const TURNO_KEY="v4-turno";
@@ -965,9 +1345,11 @@ function load(){
       d.collaborators=d.collaborators.map(n=>({name:n,equipo:"",isLET:false}));
       localStorage.setItem(STORE,JSON.stringify(d));
     }
+    // Inicializar orden personalizado si no existe
+    if(!d.customOrder)d.customOrder=[];
     return d;
   }
-  catch{return{collaborators:[],incidents:{},formats:{},_ts:0};}
+  catch{return{collaborators:[],incidents:{},formats:{},_ts:0,customOrder:[]};}
 }
 function save(d){
   // Incluir config de turno en el objeto de nube
@@ -998,6 +1380,8 @@ const today=new Date();
 let curYear=today.getFullYear(),curMonth=today.getMonth();
 
 /* TABS */
+let evidencesPanelInitialized=false;
+let bdayPanelInitialized=false;
 document.querySelectorAll(".tab").forEach(tab=>{
   tab.addEventListener("click",()=>{
     const name=tab.dataset.tab;
@@ -1007,10 +1391,34 @@ document.querySelectorAll(".tab").forEach(tab=>{
     if(name==="colaboradores")renderCollabs();
     if(name==="planeacion")renderPlanning();
     if(name==="rh")renderRhPending();
+    if(name==="evidencias"){
+      if(!evidencesPanelInitialized){
+        initEvidencesPanel();
+        evidencesPanelInitialized=true;
+      }else{
+        renderEvidencesGrid();
+      }
+    }
+    if(name==="cumpleanios"){
+      if(!bdayPanelInitialized){
+        initBirthdaysPanel();
+        bdayPanelInitialized=true;
+      }else{
+        renderBirthdaysList();
+      }
+    }
     if(name==="vista")renderVistaCalendar();
     if(name==="reporte")renderReporte();
     if(name==="analisis")renderAnalisis();
+    if(name==="alertas")renderAlertsList();
   });
+});
+
+/* ALERTAS - Botones en header */
+document.getElementById("btn-notifications").addEventListener("click",()=>{
+  // Simular click en tab de alertas
+  const tab=Array.from(document.querySelectorAll(".tab")).find(t=>t.dataset.tab==="alertas");
+  if(tab)tab.click();
 });
 
 /* LEGEND */
@@ -1033,6 +1441,57 @@ function renderCalendar(){
   document.getElementById("month-label").textContent=`${MONTHS[curMonth]} ${curYear}`;
   const data=load(),total=dim(curYear,curMonth),collabs=data.collaborators;
   const holidays=getMexHolidays(curYear);
+  
+  // ── Barra de resumen del calendario ──
+  const sumBar=document.getElementById("cal-summary-bar");
+  if(sumBar){
+    const teams=new Set();
+    let letCount=0;
+    collabs.forEach(c=>{
+      const eq=typeof c==="string"?"":(c.equipo||"").trim();
+      if(eq)teams.add(eq);
+      if(typeof c!=="string"&&c.isLET)letCount++;
+    });
+    const noTeam=collabs.filter(c=>{const eq=typeof c==="string"?"":(c.equipo||"").trim();return!eq;}).length;
+    
+    // Cumpleaños del mes
+    const bdays=loadBirthdays().filter(b=>b.month===(curMonth+1)).length;
+    // Aniversarios del mes
+    const annivs=(typeof loadAnniversaries==='function'?loadAnniversaries():[]).filter(a=>a.month===(curMonth+1)).length;
+    
+    const card=(icon,label,value,color)=>`<div style="flex:1;min-width:140px;background:white;border:1.5px solid ${color}33;border-left:4px solid ${color};border-radius:10px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04);">
+      <div style="font-size:.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">${icon} ${label}</div>
+      <div style="font-size:1.5rem;font-weight:800;color:${color};line-height:1.1;margin-top:2px;">${value}</div>
+    </div>`;
+    
+    sumBar.innerHTML=
+      card('👥','Colaboradores',collabs.length,'#1e40af')+
+      card('🏷','Equipos',teams.size+(noTeam?` <span style="font-size:.7rem;font-weight:600;color:#94a3b8;">(+${noTeam} s/eq)</span>`:''),'#7c3aed')+
+      card('⭐','LETs',letCount,'#f59e0b')+
+      card('🎂','Cumples del mes',bdays,'#ec4899')+
+      card('🎉','Aniversarios',annivs,'#16a34a');
+  }
+  
+  // Mapa de cumpleaños del mes: {normalizedName -> Set(días)}
+  const bdayMap=new Map();
+  loadBirthdays().forEach(b=>{
+    if(b.month===(curMonth+1)){
+      const k=normalizeName(b.name);
+      if(!bdayMap.has(k))bdayMap.set(k,new Set());
+      bdayMap.get(k).add(b.day);
+    }
+  });
+  // Mapa de aniversarios del mes
+  const annivMap=new Map();
+  if(typeof loadAnniversaries==='function'){
+    loadAnniversaries().forEach(a=>{
+      if(a.month===(curMonth+1)){
+        const k=normalizeName(a.name);
+        if(!annivMap.has(k))annivMap.set(k,new Set());
+        annivMap.get(k).add(a.day);
+      }
+    });
+  }
 
   // pre-compute day totals
   const dayTotals={};
@@ -1076,6 +1535,8 @@ function renderCalendar(){
       const letBadge=isLETflag?`<span class="let-cal-badge">LET</span>`:"";
       const rowBg=isLETflag?"background:#f5f3ff":(si%2?"background:#f8fafc":"background:#fff");
       body+=`<tr><td style="${rowBg}">${eqBadge}${letBadge}<span class="collab-name" title="${esc(name)}">${esc(name)}</span></td>`;
+      const collabBdayDays=bdayMap.get(normalizeName(name))||null;
+      const collabAnnivDays=annivMap.get(normalizeName(name))||null;
       for(let d=1;d<=total;d++){
         const dow=new Date(curYear,curMonth,d).getDay();
         const key=dk(curYear,curMonth+1,d);
@@ -1086,12 +1547,18 @@ function renderCalendar(){
         const inc=incId?INC_MAP[incId]:null;
         const bg=inc?`background:${inc.color}`:holiday?`background:#ede9fe`:"";
         const textColor=inc?isLightColor(inc.color)?"color:#1e293b;":"":"";
-        const tip=holiday?`${esc(name)} \u2014 ${holiday}${inc?" \u00b7 "+inc.name:""}`:`${esc(name)} \u2014 ${d} ${MONTHS[curMonth]}${inc?" \u00b7 "+inc.name:""}`;
+        const isBday=collabBdayDays&&collabBdayDays.has(d);
+        const isAnniv=collabAnnivDays&&collabAnnivDays.has(d);
+        const tip=holiday?`${esc(name)} \u2014 ${holiday}${inc?" \u00b7 "+inc.name:""}`:`${esc(name)} \u2014 ${d} ${MONTHS[curMonth]}${inc?" \u00b7 "+inc.name:""}${isBday?" \ud83c\udf82 \u00a1Cumplea\u00f1os!":""}${isAnniv?" \ud83c\udf89 \u00a1Aniversario!":""}`;
         const extraClass=[wk?"descanso":"",isNow?"is-today":"",holiday?"holiday":""].filter(Boolean).join(" ");
         const needsFmt=incId&&FORMAT_REQUIRED.has(incId);
         const fmtDelivered=needsFmt&&data.formats&&data.formats[key]&&data.formats[key][name];
         const fmtBadge=needsFmt?(fmtDelivered?`<div class="fmt-badge delivered" title="Formato entregado a RH">&#10003;</div>`:`<div class="fmt-badge pending" title="Formato pendiente de entrega a RH">!</div>`):"";
-        body+=`<td class="ic-cell${extraClass?" "+extraClass:""}" style="${bg}" data-ci="${origIdx}" data-dk="${key}" title="${tip}">${fmtBadge}<div class="cc" style="${textColor}">${incId}</div></td>`;
+        let topBadge="";
+        if(isBday&&isAnniv)topBadge=`<div style="position:absolute;top:1px;left:2px;font-size:.75rem;line-height:1;" title="\u00a1Cumplea\u00f1os y Aniversario!">\ud83c\udf82\ud83c\udf89</div>`;
+        else if(isBday)topBadge=`<div style="position:absolute;top:1px;left:2px;font-size:.85rem;line-height:1;" title="\u00a1Cumplea\u00f1os!">\ud83c\udf82</div>`;
+        else if(isAnniv)topBadge=`<div style="position:absolute;top:1px;left:2px;font-size:.85rem;line-height:1;" title="\u00a1Aniversario!">\ud83c\udf89</div>`;
+        body+=`<td class="ic-cell${extraClass?" "+extraClass:""}" style="${bg};position:relative;" data-ci="${origIdx}" data-dk="${key}" title="${tip}">${topBadge}${fmtBadge}<div class="cc" style="${textColor}">${incId}</div></td>`;
       }
       body+="</tr>";
     });
@@ -1190,7 +1657,19 @@ function setIncident(id){
     // limpiar formato al quitar incidencia
     if(data.formats[popDate]){delete data.formats[popDate][popCollab];if(!Object.keys(data.formats[popDate]).length)delete data.formats[popDate];}
   }
-  save(data);closePopup();renderCalendar();applyCalSearch();
+  save(data);
+  
+  // Verificar conflictos de vacaciones si se asignó VAC
+  if(id==="VAC"){
+    checkAndCreateAlert(data,popCollab,popDate);
+  }
+  
+  // Verificar alertas de exceso de faltas para cualquier incidencia
+  if(id){
+    checkAbsenceAlert(data,popCollab);
+  }
+  
+  closePopup();renderCalendar();applyCalSearch();
 }
 
 function toggleFormat(dateKey,collabName){
@@ -1253,9 +1732,27 @@ function renderCollabs(){
   const rawCollabs=data.collaborators;
   if(!rawCollabs.length){list.innerHTML=`<div class="empty-msg">Sin colaboradores. Agrega el primero con el bot\u00f3n de arriba.</div>`;return;}
 
-  // Annotate with original index, then sort
-  const indexed=rawCollabs.map((c,i)=>({c,origIdx:i}));
-  indexed.sort((a,b)=>sortCollabs([a.c,b.c])[0]===a.c?-1:1);
+  // Usar orden personalizado si existe
+  let orderedCollabs;
+  if(data.customOrder&&data.customOrder.length===rawCollabs.length){
+    // Aplicar orden personalizado
+    orderedCollabs=data.customOrder.map(idx=>rawCollabs[idx]).filter(c=>c!==undefined);
+    // Si faltan colaboradores, agregarlos al final
+    if(orderedCollabs.length<rawCollabs.length){
+      rawCollabs.forEach((c,i)=>{
+        if(!data.customOrder.includes(i))orderedCollabs.push(c);
+      });
+    }
+  }else{
+    // Usar ordenamiento autom\u00e1tico
+    orderedCollabs=sortCollabs(rawCollabs);
+  }
+
+  // Annotate with original index
+  const indexed=orderedCollabs.map(c=>{
+    const origIdx=rawCollabs.findIndex(rc=>cName(rc)===cName(c)&&(typeof c==="string"?true:(rc.equipo===c.equipo&&rc.isLET===c.isLET)));
+    return{c,origIdx};
+  });
 
   // Group by equipo
   const groups={};
@@ -1271,9 +1768,10 @@ function renderCollabs(){
     return(!isNaN(na)&&!isNaN(nb))?(na-nb):a.localeCompare(b);
   });
 
-  function rowHtml(origIdx,name,isLETflag,rowNum){
+  function rowHtml(origIdx,name,isLETflag,rowNum,displayIdx){
     const letBadge=isLETflag?`<span style="background:#7c3aed;color:white;font-size:.7rem;padding:2px 6px;border-radius:4px;font-weight:700;margin-right:6px">LET</span>`:"";
-    return `<div class="coll-item${isLETflag?" coll-let-row":""}">
+    return `<div class="coll-item${isLETflag?" coll-let-row":""}" draggable="true" data-orig-idx="${origIdx}" data-display-idx="${displayIdx}">
+      <span class="drag-handle">\u2630</span>
       <span class="coll-num">${rowNum}</span>
       ${letBadge}<span class="coll-name-txt">${esc(name)}</span>
       <div style="display:flex;gap:6px;margin-left:auto">
@@ -1285,24 +1783,28 @@ function renderCollabs(){
 
   let html="";
   let globalNum=1;
+  let displayIdx=0;
   eqKeys.forEach(eq=>{
     html+=`<div class="eq-section-header">&#128101; Equipo ${esc(eq)}</div>`;
     groups[eq].forEach(({c,origIdx})=>{
       const name=cName(c);
       const isLETflag=typeof c==="string"?false:!!c.isLET;
-      html+=rowHtml(origIdx,name,isLETflag,globalNum++);
+      html+=rowHtml(origIdx,name,isLETflag,globalNum++,displayIdx++);
     });
   });
   if(sinEquipo.length){
     if(eqKeys.length)html+=`<div class="eq-section-header" style="color:#64748b">Sin equipo asignado</div>`;
     sinEquipo.forEach(({c,origIdx})=>{
-      html+=rowHtml(origIdx,cName(c),typeof c==="string"?false:!!c.isLET,globalNum++);
+      html+=rowHtml(origIdx,cName(c),typeof c==="string"?false:!!c.isLET,globalNum++,displayIdx++);
     });
   }
 
   list.innerHTML=html;
   list.querySelectorAll(".btn-del").forEach(btn=>btn.addEventListener("click",()=>deleteCollab(parseInt(btn.dataset.idx))));
   list.querySelectorAll(".btn-edit-collab").forEach(btn=>btn.addEventListener("click",()=>openEditCollab(parseInt(btn.dataset.idx))));
+  
+  // Agregar funcionalidad de drag & drop
+  initDragAndDrop();
 }
 
 document.getElementById("btn-add-collab").addEventListener("click",()=>{
@@ -1329,6 +1831,103 @@ document.getElementById("btn-modal-cancel").addEventListener("click",closeModal)
 document.getElementById("modal-add").addEventListener("click",e=>{if(e.target===document.getElementById("modal-add"))closeModal();});
 document.getElementById("input-collab").addEventListener("keydown",e=>{if(e.key==="Enter")saveCollab();});
 document.getElementById("btn-modal-save").addEventListener("click",saveCollab);
+
+/* ═══════════════════════════════════════════
+   DRAG AND DROP PARA REORDENAR COLABORADORES
+═══════════════════════════════════════════ */
+let draggedElement=null;
+let draggedOrigIdx=null;
+
+function initDragAndDrop(){
+  const items=document.querySelectorAll(".coll-item[draggable='true']");
+  
+  items.forEach(item=>{
+    item.addEventListener("dragstart",handleDragStart);
+    item.addEventListener("dragover",handleDragOver);
+    item.addEventListener("drop",handleDrop);
+    item.addEventListener("dragenter",handleDragEnter);
+    item.addEventListener("dragleave",handleDragLeave);
+    item.addEventListener("dragend",handleDragEnd);
+  });
+}
+
+function handleDragStart(e){
+  draggedElement=e.currentTarget;
+  draggedOrigIdx=parseInt(draggedElement.dataset.origIdx);
+  e.currentTarget.classList.add("dragging");
+  e.dataTransfer.effectAllowed="move";
+  e.dataTransfer.setData("text/html",e.currentTarget.innerHTML);
+}
+
+function handleDragOver(e){
+  if(e.preventDefault){e.preventDefault();}
+  e.dataTransfer.dropEffect="move";
+  return false;
+}
+
+function handleDragEnter(e){
+  if(e.currentTarget!==draggedElement){
+    e.currentTarget.classList.add("drag-over");
+  }
+}
+
+function handleDragLeave(e){
+  e.currentTarget.classList.remove("drag-over");
+}
+
+function handleDrop(e){
+  if(e.stopPropagation){e.stopPropagation();}
+  e.preventDefault();
+  
+  const dropTarget=e.currentTarget;
+  dropTarget.classList.remove("drag-over");
+  
+  if(draggedElement!==dropTarget){
+    const draggedDisplayIdx=parseInt(draggedElement.dataset.displayIdx);
+    const targetDisplayIdx=parseInt(dropTarget.dataset.displayIdx);
+    
+    // Reordenar colaboradores
+    reorderCollaborators(draggedDisplayIdx,targetDisplayIdx);
+  }
+  
+  return false;
+}
+
+function handleDragEnd(e){
+  e.currentTarget.classList.remove("dragging");
+  document.querySelectorAll(".coll-item").forEach(item=>{
+    item.classList.remove("drag-over");
+  });
+}
+
+function reorderCollaborators(fromIdx,toIdx){
+  const data=load();
+  const rawCollabs=data.collaborators;
+  
+  // Obtener el orden actual mostrado
+  let currentOrder;
+  if(data.customOrder&&data.customOrder.length===rawCollabs.length){
+    currentOrder=[...data.customOrder];
+  }else{
+    // Crear orden inicial basado en el ordenamiento actual
+    const orderedCollabs=sortCollabs(rawCollabs);
+    currentOrder=orderedCollabs.map(c=>{
+      return rawCollabs.findIndex(rc=>cName(rc)===cName(c)&&(typeof c==="string"?true:(rc.equipo===c.equipo&&rc.isLET===c.isLET)));
+    });
+  }
+  
+  // Mover el elemento
+  const movedItem=currentOrder.splice(fromIdx,1)[0];
+  currentOrder.splice(toIdx,0,movedItem);
+  
+  // Guardar nuevo orden
+  data.customOrder=currentOrder;
+  save(data);
+  
+  // Re-renderizar
+  renderCollabs();
+  showToast("✓ Orden actualizado");
+}
 
 function closeModal(){document.getElementById("modal-add").classList.remove("open");}
 
@@ -1389,6 +1988,12 @@ function initAnalisisFilters(){
   ms.value=today.getMonth();
   ys.addEventListener("change",renderAnalisis);
   ms.addEventListener("change",renderAnalisis);
+  // Botón Dashboard PDF
+  const btnDash=document.getElementById("btn-dashboard-pdf");
+  if(btnDash&&!btnDash.dataset.bound){
+    btnDash.addEventListener("click",generateDashboardPDF);
+    btnDash.dataset.bound="1";
+  }
 }
 
 function renderAnalisis(){
@@ -1407,6 +2012,11 @@ function renderAnalisis(){
     return m===filterMonth;
   }
 
+  // ── COMPARATIVO MES vs MES ANTERIOR ──
+  renderMomCompare(data,year,filterMonth);
+  // ── TOP AUSENTISMO ──
+  renderTopAusentismo(data,year,filterMonth,collabs);
+
   // ── 1. RANKING ── (solo faltas injustificadas)
   const fiTotals={};
   collabs.forEach(n=>{fiTotals[n]=0;});
@@ -1416,7 +2026,7 @@ function renderAnalisis(){
       if(id==="FI"&&fiTotals[n]!==undefined)fiTotals[n]++;
     });
   });
-  const ranked=[...collabs].sort((a,b)=>fiTotals[a]-fiTotals[b]);
+  const ranked=[...collabs].sort((a,b)=>fiTotals[b]-fiTotals[a]);
   const maxFI=Math.max(1,...ranked.map(n=>fiTotals[n]));
   const rankEl=document.getElementById("ana-ranking");
   if(!collabs.length){rankEl.innerHTML=`<div class="rh-empty">Sin colaboradores.</div>`;}
@@ -1470,6 +2080,12 @@ function renderAnalisis(){
 
   // ── 4. ALERTAS DE PATRONES ──
   const alerts=[];
+  
+  // ── 4b. ALERTAS DE VACACIONES SIMULTÁNEAS ──
+  renderVacationAlerts(data,year,filterMonth);
+  
+  // ── 0. GRÁFICAS VISUALES ──
+  renderCharts(data,year,filterMonth);
   collabs.forEach(name=>{
     // a) mismo día de semana repetido con misma incidencia
     const byDow={};// dow -> {incId -> count}
@@ -1509,44 +2125,6 @@ function renderAnalisis(){
   else{
     patEl.innerHTML=alerts.map(a=>`<div class="pat-alert${a.level==="red"?" red":""}"><span class="pat-icon">${a.level==="red"?"&#128680;":"&#9888;"}</span><span class="pat-msg">${a.msg}</span></div>`).join("");
   }
-
-  // ── COMPARATIVO DE COLABORADORES ──
-  const compEl=document.getElementById("ana-comparativo");
-  if(!collabs.length){compEl.innerHTML=`<div class="rh-empty" style="padding:12px">Sin colaboradores registrados.</div>`;return;}
-  // build totals per collab per incident type
-  const compData=collabs.map(name=>{
-    const t=Object.fromEntries(INCIDENTS.map(i=>[i.id,0]));
-    let total=0;
-    Object.entries(data.incidents).forEach(([dk2,dd])=>{
-      if(!inRange(dk2)||!dd[name])return;
-      if(t[dd[name]]!==undefined){t[dd[name]]++;total++;}
-    });
-    return{name,t,total};
-  });
-  compData.sort((a,b)=>a.total-b.total);
-  // only show incident types that have at least 1 entry
-  const usedIncs=INCIDENTS.filter(i=>compData.some(c=>c.t[i.id]>0));
-  let tbl=`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:.78rem;">
-    <thead><tr style="background:#0f172a;color:white;">
-      <th style="padding:7px 12px;text-align:left;position:sticky;left:0;background:#0f172a;z-index:2;">Colaborador</th>
-      <th style="padding:7px 10px;text-align:center;background:#1e40af;">Total</th>`;
-  usedIncs.forEach(i=>{
-    tbl+=`<th style="padding:7px 8px;text-align:center;background:${i.color};white-space:nowrap;">${i.id}</th>`;
-  });
-  tbl+=`</tr></thead><tbody>`;
-  compData.forEach(({name,t,total},idx)=>{
-    const bg=idx%2===0?"#fff":"#f8fafc";
-    tbl+=`<tr style="background:${bg}">
-      <td style="padding:6px 12px;font-weight:600;position:sticky;left:0;background:${bg};border-right:1px solid #e2e8f0;">${esc(name)}</td>
-      <td style="padding:6px 10px;text-align:center;font-weight:700;color:${total?"#1e40af":"#94a3b8"};">${total||"—"}</td>`;
-    usedIncs.forEach(i=>{
-      const v=t[i.id];
-      tbl+=`<td style="padding:6px 8px;text-align:center;color:${v?i.color:"#cbd5e1"};font-weight:${v?"700":"400"};">${v||"—"}</td>`;
-    });
-    tbl+=`</tr>`;
-  });
-  tbl+=`</tbody></table></div>`;
-  compEl.innerHTML=tbl;
 
   // ── INCIDENCIAS POR SEMANA ──
   const wkEl=document.getElementById("ana-weekly");
@@ -1589,6 +2167,346 @@ function renderAnalisis(){
   wHtml+=`</div>`;
   wkEl.innerHTML=wHtml;
 }
+
+/* ═══════════════════════════════════════════
+   COMPARATIVO MES vs MES ANTERIOR
+═══════════════════════════════════════════ */
+function renderMomCompare(data,year,filterMonth){
+  const el=document.getElementById("ana-mom-compare");
+  if(!el)return;
+  
+  // Determinar mes actual y anterior
+  let curM,curY,prevM,prevY,curLabel,prevLabel;
+  if(filterMonth===null){
+    // Si "Todo el año": comparar año actual vs año anterior
+    curY=year;prevY=year-1;curM=null;prevM=null;
+    curLabel=String(year);prevLabel=String(year-1);
+  }else{
+    curY=year;curM=filterMonth;
+    if(filterMonth===0){prevM=11;prevY=year-1;}
+    else{prevM=filterMonth-1;prevY=year;}
+    curLabel=`${MONTHS[curM]} ${curY}`;
+    prevLabel=`${MONTHS[prevM]} ${prevY}`;
+  }
+  
+  function countByType(yr,mo){
+    const counts={};
+    INCIDENTS.forEach(i=>counts[i.id]=0);
+    let total=0;
+    Object.entries(data.incidents).forEach(([dk2,dd])=>{
+      if(!dk2.startsWith(String(yr)))return;
+      if(mo!==null){
+        const m=parseInt(dk2.slice(5,7))-1;
+        if(m!==mo)return;
+      }
+      Object.values(dd).forEach(id=>{
+        if(counts[id]!==undefined){counts[id]++;total++;}
+      });
+    });
+    return{counts,total};
+  }
+  
+  const cur=countByType(curY,curM);
+  const prev=countByType(prevY,prevM);
+  
+  // Header con totales
+  const totalDiff=cur.total-prev.total;
+  const totalPct=prev.total===0?(cur.total>0?100:0):Math.round((totalDiff/prev.total)*100);
+  const totalArrow=totalDiff>0?'↑':totalDiff<0?'↓':'→';
+  const totalColor=totalDiff>0?'#dc2626':totalDiff<0?'#16a34a':'#64748b';
+  
+  let html=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div style="background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0;">
+      <div style="font-size:.72rem;color:#64748b;font-weight:600;text-transform:uppercase;">${esc(prevLabel)}</div>
+      <div style="font-size:1.8rem;font-weight:800;color:#0f172a;">${prev.total}</div>
+      <div style="font-size:.75rem;color:#94a3b8;">incidencias</div>
+    </div>
+    <div style="background:#eff6ff;padding:14px;border-radius:10px;border:1px solid #bfdbfe;">
+      <div style="font-size:.72rem;color:#1e40af;font-weight:600;text-transform:uppercase;">${esc(curLabel)}</div>
+      <div style="font-size:1.8rem;font-weight:800;color:#1e3a5f;">${cur.total}</div>
+      <div style="font-size:.75rem;color:#1e40af;">incidencias</div>
+    </div>
+    <div style="background:white;padding:14px;border-radius:10px;border:2px solid ${totalColor};">
+      <div style="font-size:.72rem;color:${totalColor};font-weight:600;text-transform:uppercase;">Variación</div>
+      <div style="font-size:1.8rem;font-weight:800;color:${totalColor};">${totalArrow} ${Math.abs(totalPct)}%</div>
+      <div style="font-size:.75rem;color:${totalColor};">${totalDiff>0?'+':''}${totalDiff} vs anterior</div>
+    </div>
+  </div>`;
+  
+  // Tabla por tipo
+  const types=INCIDENTS.filter(i=>cur.counts[i.id]>0||prev.counts[i.id]>0);
+  if(!types.length){
+    el.innerHTML=html+`<div class="rh-empty" style="padding:12px;">Sin datos para comparar.</div>`;
+    return;
+  }
+  
+  html+=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+    <thead><tr style="background:#f1f5f9;">
+      <th style="padding:10px;text-align:left;border-bottom:2px solid #e2e8f0;">Tipo</th>
+      <th style="padding:10px;text-align:center;border-bottom:2px solid #e2e8f0;">${esc(prevLabel)}</th>
+      <th style="padding:10px;text-align:center;border-bottom:2px solid #e2e8f0;">${esc(curLabel)}</th>
+      <th style="padding:10px;text-align:center;border-bottom:2px solid #e2e8f0;">Variación</th>
+    </tr></thead><tbody>`;
+  
+  types.sort((a,b)=>cur.counts[b.id]-cur.counts[a.id]).forEach(inc=>{
+    const p=prev.counts[inc.id];
+    const c=cur.counts[inc.id];
+    const diff=c-p;
+    const pct=p===0?(c>0?100:0):Math.round((diff/p)*100);
+    const arrow=diff>0?'↑':diff<0?'↓':'→';
+    const color=diff>0?'#dc2626':diff<0?'#16a34a':'#64748b';
+    html+=`<tr style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:8px 10px;">
+        <span style="display:inline-block;width:10px;height:10px;background:${inc.color};border-radius:50%;margin-right:8px;"></span>
+        <b>${inc.id}</b> <span style="color:#64748b;font-size:.78rem;">${esc(inc.name)}</span>
+      </td>
+      <td style="padding:8px 10px;text-align:center;color:#64748b;">${p}</td>
+      <td style="padding:8px 10px;text-align:center;font-weight:700;">${c}</td>
+      <td style="padding:8px 10px;text-align:center;font-weight:700;color:${color};">${arrow} ${diff>0?'+':''}${diff} (${diff>=0?'+':''}${pct}%)</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div>`;
+  
+  el.innerHTML=html;
+}
+
+/* ═══════════════════════════════════════════
+   TOP AUSENTISMO
+═══════════════════════════════════════════ */
+function renderTopAusentismo(data,year,filterMonth,collabs){
+  const el=document.getElementById("ana-top-ausentismo");
+  if(!el)return;
+  
+  function inRange(dk2){
+    if(!dk2.startsWith(String(year)))return false;
+    if(filterMonth===null)return true;
+    const m=parseInt(dk2.slice(5,7))-1;
+    return m===filterMonth;
+  }
+  
+  // Contar faltas (FI + FJ) por colaborador
+  const counts={};
+  collabs.forEach(n=>{counts[n]={fi:0,fj:0,total:0,dates:[]};});
+  Object.entries(data.incidents).forEach(([dk2,dd])=>{
+    if(!inRange(dk2))return;
+    Object.entries(dd).forEach(([n,id])=>{
+      if(!counts[n])return;
+      if(id==="FI"){counts[n].fi++;counts[n].total++;counts[n].dates.push(dk2);}
+      else if(id==="FJ"){counts[n].fj++;counts[n].total++;counts[n].dates.push(dk2);}
+    });
+  });
+  
+  // Filtrar solo los que tienen al menos 1 falta y ordenar
+  const ranked=Object.entries(counts)
+    .filter(([n,c])=>c.total>0)
+    .sort((a,b)=>b[1].total-a[1].total)
+    .slice(0,15);
+  
+  if(!ranked.length){
+    el.innerHTML=`<div style="padding:20px;text-align:center;color:#16a34a;background:#f0fdf4;border-radius:8px;">
+      <div style="font-size:2rem;">🎉</div>
+      <div style="font-weight:700;margin-top:6px;">¡Sin faltas en el período!</div>
+    </div>`;
+    return;
+  }
+  
+  const max=ranked[0][1].total;
+  
+  let html=`<div style="display:flex;flex-direction:column;gap:6px;">`;
+  ranked.forEach(([name,c],i)=>{
+    const pct=Math.round((c.total/max)*100);
+    const bg=i%2===0?'#f8fafc':'white';
+    
+    const severity=c.total>=8?'#dc2626':c.total>=5?'#ea580c':c.total>=3?'#f59e0b':'#3b82f6';
+    
+    html+=`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:${bg};border-radius:8px;border:1px solid #e2e8f0;">
+      <div style="min-width:36px;text-align:center;font-weight:800;color:#475569;font-size:.95rem;">#${i+1}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;color:#0f172a;font-size:.92rem;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</div>
+        <div style="background:#f1f5f9;border-radius:5px;height:18px;overflow:hidden;">
+          <div style="width:${pct}%;background:${severity};height:100%;display:flex;align-items:center;padding:0 8px;min-width:30px;">
+            <span style="color:white;font-size:.7rem;font-weight:700;">${c.total}</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;font-size:.72rem;font-weight:700;">
+        <span style="background:#fee2e2;color:#dc2626;padding:3px 8px;border-radius:5px;" title="Falta Injustificada">FI: ${c.fi}</span>
+        <span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:5px;" title="Falta Justificada">FJ: ${c.fj}</span>
+      </div>
+    </div>`;
+  });
+  html+=`</div>`;
+  
+  // Resumen
+  const totalFaltas=ranked.reduce((s,[,c])=>s+c.total,0);
+  html+=`<div style="margin-top:12px;padding:10px 14px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;font-size:.85rem;color:#7f1d1d;">
+    <b>Total:</b> ${totalFaltas} faltas acumuladas en el período entre ${ranked.length} colaboradores.
+  </div>`;
+  
+  el.innerHTML=html;
+}
+
+/* ═══════════════════════════════════════════
+   DASHBOARD EJECUTIVO PDF
+═══════════════════════════════════════════ */
+function generateDashboardPDF(){
+  const year=parseInt(document.getElementById("ana-year").value)||today.getFullYear();
+  const monthVal=document.getElementById("ana-month").value;
+  const filterMonth=monthVal===""?null:parseInt(monthVal);
+  const data=load();
+  const collabs=data.collaborators.map(c=>cName(c));
+  const cfg=(typeof getAppConfig==='function'?getAppConfig():null)||{};
+  
+  function inRange(dk2){
+    if(!dk2.startsWith(String(year)))return false;
+    if(filterMonth===null)return true;
+    const m=parseInt(dk2.slice(5,7))-1;
+    return m===filterMonth;
+  }
+  
+  // Recopilar métricas clave
+  const counts={};INCIDENTS.forEach(i=>counts[i.id]=0);
+  let totalInc=0;
+  const fxColl={};collabs.forEach(n=>{fxColl[n]=0;});
+  Object.entries(data.incidents).forEach(([dk2,dd])=>{
+    if(!inRange(dk2))return;
+    Object.entries(dd).forEach(([n,id])=>{
+      if(counts[id]!==undefined){counts[id]++;totalInc++;}
+      if((id==="FI"||id==="FJ")&&fxColl[n]!==undefined)fxColl[n]++;
+    });
+  });
+  
+  const topAus=Object.entries(fxColl).filter(([,c])=>c>0).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const topInc=INCIDENTS.filter(i=>counts[i.id]>0).sort((a,b)=>counts[b.id]-counts[a.id]).slice(0,6);
+  
+  // Comparativo
+  let prevTotal=0,prevM,prevY;
+  if(filterMonth===null){prevY=year-1;prevM=null;}
+  else if(filterMonth===0){prevY=year-1;prevM=11;}
+  else{prevY=year;prevM=filterMonth-1;}
+  Object.entries(data.incidents).forEach(([dk2,dd])=>{
+    if(!dk2.startsWith(String(prevY)))return;
+    if(prevM!==null){const m=parseInt(dk2.slice(5,7))-1;if(m!==prevM)return;}
+    prevTotal+=Object.keys(dd).length;
+  });
+  const diff=totalInc-prevTotal;
+  const pct=prevTotal===0?(totalInc>0?100:0):Math.round((diff/prevTotal)*100);
+  const arrow=diff>0?'▲':diff<0?'▼':'=';
+  const arrowColor=diff>0?'#dc2626':diff<0?'#16a34a':'#64748b';
+  
+  const periodLabel=filterMonth===null?String(year):`${MONTHS[filterMonth]} ${year}`;
+  const prevLabel=filterMonth===null?String(year-1):(filterMonth===0?`${MONTHS[11]} ${year-1}`:`${MONTHS[filterMonth-1]} ${year}`);
+  const printDate=new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
+  
+  // Generar HTML del dashboard
+  const win=window.open('','dashboard','width=900,height=1200');
+  if(!win){showToast('Permite ventanas emergentes para generar el PDF',4000);return;}
+  
+  const incRows=topInc.map(i=>{
+    const w=Math.round((counts[i.id]/(topInc[0]?counts[topInc[0].id]:1))*100);
+    return `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;"><span style="display:inline-block;width:10px;height:10px;background:${i.color};border-radius:50%;margin-right:6px;"></span><b>${i.id}</b> ${esc(i.name)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;">${counts[i.id]}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;width:120px;"><div style="background:#f1f5f9;border-radius:4px;height:14px;overflow:hidden;"><div style="width:${w}%;background:${i.color};height:100%;"></div></div></td>
+    </tr>`;
+  }).join('');
+  
+  const ausRows=topAus.length?topAus.map((a,i)=>{
+    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`;
+    return `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;width:40px;font-weight:700;">${medal}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;">${esc(a[0])}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#dc2626;">${a[1]}</td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="3" style="padding:14px;text-align:center;color:#16a34a;font-weight:700;">🎉 Sin ausentismo</td></tr>';
+  
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Dashboard Ejecutivo - ${esc(cfg.lineName||'')}</title>
+  <style>
+    @page{size:letter;margin:14mm;}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#0f172a;margin:0;padding:0;font-size:11pt;}
+    .header{background:linear-gradient(135deg,#1e3a5f,#1e40af);color:white;padding:18px 24px;border-radius:8px;margin-bottom:16px;}
+    .header h1{margin:0;font-size:1.6rem;}
+    .header .sub{font-size:.85rem;opacity:.95;margin-top:4px;}
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
+    .kpi{background:white;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center;}
+    .kpi-label{font-size:.7rem;color:#64748b;font-weight:600;text-transform:uppercase;}
+    .kpi-value{font-size:1.7rem;font-weight:800;color:#0f172a;margin:4px 0;}
+    .kpi-sub{font-size:.7rem;color:#94a3b8;}
+    .section{margin-bottom:16px;page-break-inside:avoid;}
+    .section h2{font-size:1.05rem;color:#1e3a5f;border-bottom:2px solid #1e40af;padding-bottom:5px;margin:0 0 10px 0;}
+    table{width:100%;border-collapse:collapse;font-size:.82rem;}
+    th{background:#f1f5f9;padding:7px 8px;text-align:left;font-size:.72rem;color:#475569;text-transform:uppercase;}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    .footer{margin-top:18px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:.7rem;color:#94a3b8;text-align:center;}
+    .compare-box{background:white;border:2px solid ${arrowColor};border-radius:10px;padding:10px;text-align:center;}
+  </style></head><body>
+  <div class="header">
+    <h1>📊 Dashboard Ejecutivo</h1>
+    <div class="sub">${esc(cfg.lineName||'V4')} — Supervisor: ${esc(cfg.supervisor||'—')} — Período: <b>${esc(periodLabel)}</b> — Generado: ${printDate}</div>
+  </div>
+  
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">Colaboradores</div>
+      <div class="kpi-value">${collabs.length}</div>
+      <div class="kpi-sub">activos</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Incidencias</div>
+      <div class="kpi-value">${totalInc}</div>
+      <div class="kpi-sub">en el período</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Faltas (FI+FJ)</div>
+      <div class="kpi-value" style="color:#dc2626;">${(counts.FI||0)+(counts.FJ||0)}</div>
+      <div class="kpi-sub">FI: ${counts.FI||0} · FJ: ${counts.FJ||0}</div>
+    </div>
+    <div class="compare-box">
+      <div class="kpi-label" style="color:${arrowColor};">vs ${esc(prevLabel)}</div>
+      <div class="kpi-value" style="color:${arrowColor};">${arrow} ${Math.abs(pct)}%</div>
+      <div class="kpi-sub">${diff>0?'+':''}${diff} incidencias</div>
+    </div>
+  </div>
+  
+  <div class="two-col">
+    <div class="section">
+      <h2>🎯 Top Incidencias del Período</h2>
+      <table>${incRows||'<tr><td colspan="3" style="padding:14px;text-align:center;color:#94a3b8;">Sin datos</td></tr>'}</table>
+    </div>
+    <div class="section">
+      <h2>🔥 Top Ausentismo</h2>
+      <table>${ausRows}</table>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>📋 Resumen por Tipo</h2>
+    <table>
+      <thead><tr><th>Tipo</th><th>Descripción</th><th style="text-align:right;">Cantidad</th><th style="text-align:right;">% del total</th></tr></thead>
+      <tbody>
+        ${INCIDENTS.filter(i=>counts[i.id]>0).sort((a,b)=>counts[b.id]-counts[a.id]).map(i=>`
+          <tr>
+            <td style="padding:6px 8px;border-bottom:1px solid #eee;"><span style="display:inline-block;width:10px;height:10px;background:${i.color};border-radius:50%;margin-right:6px;"></span><b>${i.id}</b></td>
+            <td style="padding:6px 8px;border-bottom:1px solid #eee;">${esc(i.name)}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;">${counts[i.id]}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${totalInc?Math.round(counts[i.id]/totalInc*100):0}%</td>
+          </tr>`).join('')||'<tr><td colspan="4" style="padding:14px;text-align:center;color:#94a3b8;">Sin datos</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  
+  <div class="footer">
+    Documento generado automáticamente por el Sistema de Control de Incidencias V4 — ${printDate}
+  </div>
+  
+  <script>window.onload=()=>{setTimeout(()=>window.print(),300);};<\/script>
+  </body></html>`;
+  
+  win.document.write(html);
+  win.document.close();
+}
+
+window.generateDashboardPDF=generateDashboardPDF;
 
 /* ═══════════════════════════════════════════
    REPORTE POR COLABORADOR
@@ -2380,7 +3298,7 @@ document.getElementById("btn-import-confirm").addEventListener("click",()=>{
 });
 
 /* ── Toast notification ── */
-function showToast(msg){
+function showToast(msg,duration=3200){
   let t=document.getElementById("app-toast");
   if(!t){
     t=document.createElement("div");
@@ -2391,7 +3309,1587 @@ function showToast(msg){
   t.textContent=msg;
   t.style.opacity="1";
   clearTimeout(t._tid);
-  t._tid=setTimeout(()=>t.style.opacity="0",3200);
+  t._tid=setTimeout(()=>t.style.opacity="0",duration);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SISTEMA DE EVIDENCIAS RH
+══════════════════════════════════════════════════════════════════ */
+
+// Cargar evidencias del localStorage
+function loadEvidences(){
+  try{
+    const data=localStorage.getItem(EVIDENCE_STORE);
+    return data?JSON.parse(data):[];
+  }catch{
+    return[];
+  }
+}
+
+// Guardar evidencias en localStorage
+function saveEvidences(evidences){
+  try{
+    localStorage.setItem(EVIDENCE_STORE,JSON.stringify(evidences));
+  }catch(e){
+    showToast("Error al guardar evidencia: "+e.message,5000);
+  }
+}
+
+// Inicializar panel de evidencias
+function initEvidencesPanel(){
+  const uploadArea=document.getElementById('evidence-upload');
+  const fileInput=document.getElementById('evidence-file-input');
+  const filterCollab=document.getElementById('evidence-filter-collab');
+  const filterType=document.getElementById('evidence-filter-type');
+  const filterMonth=document.getElementById('evidence-filter-month');
+  
+  if(!uploadArea||!fileInput)return;
+  
+  // Poblar select de colaboradores
+  const data=load();
+  filterCollab.innerHTML='<option value="">Todos los colaboradores</option>'+
+    data.collaborators.map(c=>cName(c)).sort().map(name=>
+      `<option value="${esc(name)}">${esc(name)}</option>`
+    ).join('');
+  
+  // Click en área de carga
+  uploadArea.addEventListener('click',()=>fileInput.click());
+  
+  // Drag & Drop
+  uploadArea.addEventListener('dragover',e=>{
+    e.preventDefault();
+    uploadArea.classList.add('drag-over');
+  });
+  
+  uploadArea.addEventListener('dragleave',()=>{
+    uploadArea.classList.remove('drag-over');
+  });
+  
+  uploadArea.addEventListener('drop',e=>{
+    e.preventDefault();
+    uploadArea.classList.remove('drag-over');
+    const files=Array.from(e.dataTransfer.files||[]);
+    handleEvidenceFiles(files);
+  });
+  
+  // Selección de archivos
+  fileInput.addEventListener('change',e=>{
+    const files=Array.from(e.target.files||[]);
+    fileInput.value=''; // Reset input ANTES de procesar
+    handleEvidenceFiles(files);
+  });
+  
+  // Filtros
+  filterCollab.addEventListener('change',renderEvidencesGrid);
+  filterType.addEventListener('change',renderEvidencesGrid);
+  filterMonth.addEventListener('change',renderEvidencesGrid);
+  
+  // Render inicial
+  renderEvidencesGrid();
+}
+
+// Manejar archivos seleccionados
+function handleEvidenceFiles(files){
+  if(!files||files.length===0)return;
+  
+  const data=load();
+  const collabNames=data.collaborators.map(c=>cName(c));
+  
+  // Modal para seleccionar colaborador, tipo y fecha
+  showEvidenceUploadModal(files,collabNames);
+}
+
+// Modal para configurar evidencia
+function showEvidenceUploadModal(files,collabNames){
+  const today=new Date().toISOString().split('T')[0];
+  
+  const html=`
+    <div class="modal-title" style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-bottom:18px;">📎 Subir Evidencia (${files.length} archivo${files.length>1?'s':''})</div>
+    <div style="margin-bottom:14px;">
+      <label class="field-label">Colaborador</label>
+      <select id="ev-collab" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+        <option value="">Selecciona un colaborador</option>
+        ${collabNames.sort().map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label class="field-label">Tipo de Formato</label>
+      <select id="ev-type" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+        <option value="">Selecciona el tipo</option>
+        <option value="PSG">PSG - Permiso sin Goce</option>
+        <option value="SAN">SAN - Sanción</option>
+        <option value="FI">FI - Falta Injustificada</option>
+      </select>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label class="field-label">Fecha del Incidente</label>
+      <input type="date" id="ev-date" value="${today}" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label class="field-label">Notas (opcional)</label>
+      <textarea id="ev-notes" rows="3" placeholder="Observaciones adicionales..." style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-family:inherit;resize:vertical;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="ev-btn-cancel" type="button">Cancelar</button>
+      <button class="btn-primary" id="ev-btn-confirm" type="button">Subir Evidencia</button>
+    </div>
+  `;
+  
+  document.getElementById('modal-evidence-content').innerHTML=html;
+  document.getElementById('modal-evidence').classList.add('open');
+  
+  // Guardar files temporalmente
+  window._tempEvidenceFiles=files;
+  
+  // Adjuntar handlers directamente (evita problemas con onclick inline)
+  const btnCancel=document.getElementById('ev-btn-cancel');
+  const btnConfirm=document.getElementById('ev-btn-confirm');
+  if(btnCancel)btnCancel.addEventListener('click',closeEvidenceModal);
+  if(btnConfirm)btnConfirm.addEventListener('click',confirmEvidenceUpload);
+}
+
+// Confirmar y guardar evidencia
+async function confirmEvidenceUpload(){
+  const collabEl=document.getElementById('ev-collab');
+  const typeEl=document.getElementById('ev-type');
+  const dateEl=document.getElementById('ev-date');
+  const notesEl=document.getElementById('ev-notes');
+  
+  const collab=collabEl?collabEl.value:'';
+  const type=typeEl?typeEl.value:'';
+  const date=dateEl?dateEl.value:'';
+  const notes=notesEl?notesEl.value:'';
+  
+  if(!collab||!type||!date){
+    showToast('Por favor completa todos los campos requeridos',3000);
+    return;
+  }
+  
+  const files=window._tempEvidenceFiles;
+  if(!files||files.length===0){
+    showToast('No hay archivos seleccionados',3000);
+    return;
+  }
+  
+  console.log('[Evidencia] Procesando',files.length,'archivo(s)');
+  
+  const evidences=loadEvidences();
+  let uploaded=0;
+  let errors=[];
+  
+  for(const file of files){
+    console.log('[Evidencia] Archivo:',file.name,'tipo:',file.type,'tamaño:',file.size);
+    
+    // Validar por extensión (más confiable que MIME)
+    const ext=file.name.split('.').pop().toLowerCase();
+    const validExts=['jpg','jpeg','png','pdf','gif','webp'];
+    if(!validExts.includes(ext)){
+      errors.push(`${file.name}: formato no soportado (${ext})`);
+      continue;
+    }
+    
+    const isImage=['jpg','jpeg','png','gif','webp'].includes(ext);
+    
+    // Validar tamaño: imágenes hasta 8MB (se comprimen), PDFs hasta 2MB
+    const maxSize=isImage?8*1024*1024:2*1024*1024;
+    if(file.size>maxSize){
+      errors.push(`${file.name}: excede ${isImage?'8MB':'2MB'}`);
+      continue;
+    }
+    
+    try{
+      // Comprimir imágenes automáticamente para ahorrar espacio
+      const base64=isImage?await compressImage(file,1280,0.72):await fileToBase64(file);
+      
+      const evidence={
+        id:Date.now()+'-'+Math.random().toString(36).substr(2,9),
+        collaborator:collab,
+        type:type,
+        date:date,
+        fileName:file.name,
+        fileType:isImage?'image/jpeg':(file.type||'application/pdf'),
+        fileData:base64,
+        notes:notes,
+        uploadDate:new Date().toISOString()
+      };
+      
+      evidences.push(evidence);
+      uploaded++;
+      console.log('[Evidencia] Procesado OK:',file.name,'(',Math.round(base64.length/1024),'KB en base64)');
+    }catch(e){
+      console.error('[Evidencia] Error:',file.name,e);
+      errors.push(`${file.name}: ${e.message||'error de lectura'}`);
+    }
+  }
+  
+  if(uploaded>0){
+    try{
+      localStorage.setItem(EVIDENCE_STORE,JSON.stringify(evidences));
+      showToast(`✓ ${uploaded} evidencia${uploaded>1?'s':''} subida${uploaded>1?'s':''} correctamente`,3000);
+      renderEvidencesGrid();
+      closeEvidenceModal();
+    }catch(e){
+      console.error('[Evidencia] Error al guardar:',e);
+      if(e.name==='QuotaExceededError'||e.code===22){
+        showToast('⚠ Almacenamiento lleno. Elimina evidencias antiguas.',5000);
+      }else{
+        showToast('Error al guardar: '+e.message,5000);
+      }
+    }
+  }
+  
+  if(errors.length>0){
+    setTimeout(()=>showToast('Errores: '+errors.join(' | '),5000),uploaded>0?3500:0);
+  }
+  
+  delete window._tempEvidenceFiles;
+}
+
+// Convertir archivo a Base64
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(reader.result);
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Comprimir imagen via canvas (reduce ~70-85% el tamaño en localStorage)
+function compressImage(file,maxDim,quality){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=reject;
+    reader.onload=e=>{
+      const img=new Image();
+      img.onerror=reject;
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>maxDim||h>maxDim){
+          if(w>=h){h=Math.round(h*(maxDim/w));w=maxDim;}
+          else{w=Math.round(w*(maxDim/h));h=maxDim;}
+        }
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        const ctx=canvas.getContext('2d');
+        ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+        ctx.drawImage(img,0,0,w,h);
+        try{resolve(canvas.toDataURL('image/jpeg',quality));}
+        catch(err){reject(err);}
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Renderizar grid de evidencias
+function renderEvidencesGrid(){
+  const grid=document.getElementById('evidence-grid');
+  if(!grid)return;
+  
+  let evidences=loadEvidences();
+  
+  // Aplicar filtros
+  const filterCollabEl=document.getElementById('evidence-filter-collab');
+  const filterTypeEl=document.getElementById('evidence-filter-type');
+  const filterMonthEl=document.getElementById('evidence-filter-month');
+  
+  const filterCollab=filterCollabEl?filterCollabEl.value:'';
+  const filterType=filterTypeEl?filterTypeEl.value:'';
+  const filterMonth=filterMonthEl?filterMonthEl.value:'';
+  
+  if(filterCollab){
+    evidences=evidences.filter(e=>e.collaborator===filterCollab);
+  }
+  
+  if(filterType){
+    evidences=evidences.filter(e=>e.type===filterType);
+  }
+  
+  if(filterMonth){
+    evidences=evidences.filter(e=>e.date.startsWith(filterMonth));
+  }
+  
+  // Ordenar por fecha más reciente
+  evidences.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  
+  if(evidences.length===0){
+    grid.innerHTML=`
+      <div class="evidence-empty">
+        <div class="evidence-empty-icon">📭</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#64748b;margin-bottom:8px;">Sin evidencias</div>
+        <div style="font-size:.9rem;color:#94a3b8;">No hay evidencias que coincidan con los filtros seleccionados</div>
+      </div>
+    `;
+    return;
+  }
+  
+  grid.innerHTML=evidences.map(ev=>{
+    const dateObj=new Date(ev.date);
+    const formattedDate=`${dateObj.getDate()} ${MONTHS[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+    
+    const badgeClass=ev.type==='PSG'?'badge-psg':ev.type==='SAN'?'badge-sancion':'badge-fi';
+    const typeLabel=ev.type==='PSG'?'PSG':ev.type==='SAN'?'Sanción':'Falta Inj.';
+    
+    // Preview
+    let previewHTML='';
+    if(ev.fileType.startsWith('image/')){
+      previewHTML=`<img src="${ev.fileData}" alt="${esc(ev.fileName)}">`;
+    }else{
+      previewHTML=`<div class="evidence-preview-icon">📄</div>`;
+    }
+    
+    return `
+      <div class="evidence-card">
+        <div class="evidence-preview">
+          ${previewHTML}
+          <div class="evidence-type-badge ${badgeClass}">${typeLabel}</div>
+        </div>
+        <div class="evidence-info">
+          <div class="evidence-name">${esc(ev.collaborator)}</div>
+          <div class="evidence-date">📅 ${formattedDate}</div>
+          ${ev.notes?`<div style="font-size:.75rem;color:#64748b;margin-bottom:6px;">${esc(ev.notes)}</div>`:''}
+          <div style="font-size:.75rem;color:#94a3b8;">📎 ${esc(ev.fileName)}</div>
+        </div>
+        <div class="evidence-actions">
+          <button class="btn-view" onclick="viewEvidence('${ev.id}')">👁️ Ver</button>
+          <button class="btn-delete-ev" onclick="deleteEvidence('${ev.id}')">🗑️ Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Ver evidencia en modal
+function viewEvidence(id){
+  const evidences=loadEvidences();
+  const ev=evidences.find(e=>e.id===id);
+  if(!ev)return;
+  
+  const dateObj=new Date(ev.date);
+  const formattedDate=`${dateObj.getDate()} de ${MONTHS[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+  
+  const typeLabel=ev.type==='PSG'?'Permiso sin Goce':ev.type==='SAN'?'Sanción':'Falta Injustificada';
+  
+  let contentHTML='';
+  if(ev.fileType.startsWith('image/')){
+    contentHTML=`<img src="${ev.fileData}" style="width:100%;border-radius:8px;">`;
+  }else if(ev.fileType==='application/pdf'){
+    contentHTML=`
+      <div style="text-align:center;padding:40px 20px;background:#f1f5f9;border-radius:8px;">
+        <div style="font-size:4rem;margin-bottom:16px;">📄</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#0f172a;margin-bottom:12px;">${esc(ev.fileName)}</div>
+        <a href="${ev.fileData}" download="${ev.fileName}" class="btn-primary" style="display:inline-block;text-decoration:none;">⬇️ Descargar PDF</a>
+      </div>
+    `;
+  }
+  
+  const html=`
+    <div class="modal-title" style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-bottom:18px;">📎 ${esc(ev.collaborator)}</div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:.85rem;color:#64748b;margin-bottom:8px;">
+        <b>Tipo:</b> ${typeLabel}<br>
+        <b>Fecha:</b> ${formattedDate}<br>
+        ${ev.notes?`<b>Notas:</b> ${esc(ev.notes)}<br>`:''}
+      </div>
+    </div>
+    ${contentHTML}
+    <div class="modal-actions" style="margin-top:16px;">
+      ${ev.fileType.startsWith('image/')?`<a href="${ev.fileData}" download="${ev.fileName}" class="btn-primary" style="text-decoration:none;display:inline-block;">⬇️ Descargar</a>`:''}<button class="btn-cancel" onclick="closeEvidenceModal()">Cerrar</button>
+    </div>
+  `;
+  
+  document.getElementById('modal-evidence-content').innerHTML=html;
+  document.getElementById('modal-evidence').classList.add('open');
+}
+
+// Eliminar evidencia
+function deleteEvidence(id){
+  if(!confirm('¿Estás seguro de eliminar esta evidencia?'))return;
+  
+  let evidences=loadEvidences();
+  evidences=evidences.filter(e=>e.id!==id);
+  saveEvidences(evidences);
+  renderEvidencesGrid();
+  showToast('Evidencia eliminada',2000);
+}
+
+// Cerrar modal de evidencias
+function closeEvidenceModal(){
+  document.getElementById('modal-evidence').classList.remove('open');
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SISTEMA DE CUMPLEAÑOS
+══════════════════════════════════════════════════════════════════ */
+const MONTH_NAMES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function loadBirthdays(){
+  try{
+    const d=localStorage.getItem(BIRTHDAYS_STORE);
+    return d?JSON.parse(d):[];
+  }catch{return[];}
+}
+function saveBirthdays(arr){
+  try{
+    localStorage.setItem(BIRTHDAYS_STORE,JSON.stringify(arr));
+  }catch(e){
+    showToast("Error al guardar cumpleaños: "+e.message,4000);
+  }
+}
+function loadAnniversaries(){
+  try{
+    const d=localStorage.getItem(ANNIVERSARIES_STORE);
+    return d?JSON.parse(d):[];
+  }catch{return[];}
+}
+function saveAnniversaries(arr){
+  try{
+    localStorage.setItem(ANNIVERSARIES_STORE,JSON.stringify(arr));
+  }catch(e){
+    showToast("Error al guardar aniversarios: "+e.message,4000);
+  }
+}
+
+// Modo de visualización: 'bdays' o 'annivs'
+let bdayViewMode='bdays';
+
+// Normaliza nombre para vincular (sin tildes, lowercase, sin espacios extra)
+function normalizeName(s){
+  return String(s||"").trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/\s+/g," ");
+}
+
+// Parser flexible de fecha: acepta Date, número de Excel, "DD/MM/AAAA", "DD-MM-AAAA", "AAAA-MM-DD"
+function parseBirthdayDate(value){
+  if(value==null||value==="")return null;
+  // Excel serial number
+  if(typeof value==="number"){
+    // Excel epoch: 1899-12-30
+    const ms=Math.round((value-25569)*86400*1000);
+    const d=new Date(ms);
+    if(!isNaN(d))return{day:d.getUTCDate(),month:d.getUTCMonth()+1,year:d.getUTCFullYear()};
+  }
+  if(value instanceof Date&&!isNaN(value)){
+    return{day:value.getDate(),month:value.getMonth()+1,year:value.getFullYear()};
+  }
+  const s=String(value).trim();
+  // ISO yyyy-mm-dd
+  let m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if(m)return{day:+m[3],month:+m[2],year:+m[1]};
+  // dd/mm/yyyy o dd-mm-yyyy
+  m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+  if(m){
+    let y=+m[3];
+    if(y<100)y+=2000;
+    return{day:+m[1],month:+m[2],year:y};
+  }
+  // dd/mm (sin año)
+  m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})$/);
+  if(m)return{day:+m[1],month:+m[2],year:null};
+  return null;
+}
+
+function initBirthdaysPanel(){
+  const fileInput=document.getElementById('bday-file');
+  const monthSel=document.getElementById('bday-month');
+  const btnClear=document.getElementById('btn-bday-clear');
+  
+  if(fileInput){
+    fileInput.addEventListener('change',e=>{
+      const file=e.target.files&&e.target.files[0];
+      fileInput.value='';
+      if(file)importBirthdaysExcel(file);
+    });
+  }
+  if(monthSel)monthSel.addEventListener('change',renderBirthdaysList);
+  if(btnClear)btnClear.addEventListener('click',()=>{
+    const tipo=bdayViewMode==='bdays'?'cumpleaños':'aniversarios';
+    if(confirm(`¿Eliminar TODOS los ${tipo} registrados?`)){
+      if(bdayViewMode==='bdays')saveBirthdays([]);
+      else saveAnniversaries([]);
+      renderBirthdaysList();
+      renderCalendar();
+      showToast(tipo.charAt(0).toUpperCase()+tipo.slice(1)+' eliminados',2500);
+    }
+  });
+  
+  // Sub-tabs
+  document.querySelectorAll('.bday-subtab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      bdayViewMode=btn.dataset.subtab;
+      document.querySelectorAll('.bday-subtab').forEach(b=>{
+        const isActive=b===btn;
+        b.classList.toggle('active',isActive);
+        b.style.borderBottomColor=isActive?'#6366f1':'transparent';
+        b.style.color=isActive?'#0f172a':'#64748b';
+      });
+      renderBirthdaysList();
+    });
+  });
+  
+  renderBirthdaysList();
+}
+
+async function importBirthdaysExcel(file){
+  if(typeof XLSX==='undefined'){
+    showToast('Librería XLSX no cargada. Recarga la página.',4000);
+    return;
+  }
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array',cellDates:true});
+    const sheet=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:true});
+    if(!rows.length){
+      showToast('El archivo está vacío',3000);
+      return;
+    }
+    
+    // Detectar columnas (busca primero columnas específicas del archivo "numerico")
+    const firstRow=rows[0];
+    const keys=Object.keys(firstRow);
+    
+    const findKey=(...regs)=>{
+      for(const re of regs){
+        const k=keys.find(x=>re.test(x));
+        if(k)return k;
+      }
+      return null;
+    };
+    
+    const nameKey=findKey(/^worker$/i,/worker/i,/nombre|colaborador|empleado/i)||keys[0];
+    const dateKey=findKey(/date.*birth/i,/birth/i,/cumple|nacim|fecha.*nac/i)||keys[1];
+    const hireKey=findKey(/^hire.?date$/i,/hire.?date/i,/fecha.*ingreso|ingreso|antig/i);
+    const mgrKey =findKey(/manager/i,/lider|líder|supervisor|jefe/i);
+    
+    console.log('[Cumpleaños] Columnas detectadas: nombre=',nameKey,'cumple=',dateKey,'ingreso=',hireKey,'manager=',mgrKey);
+    
+    // Obtener supervisor configurado para filtrar
+    const cfg=(typeof getAppConfig==='function'?getAppConfig():null)||{};
+    const myName=String(cfg.supervisor||'').trim();
+    const myWords=normalizeName(myName).split(' ').filter(w=>w.length>2);
+    
+    // Función: ¿el manager de la fila coincide con mi nombre?
+    function isMyManager(mgrValue){
+      if(!myWords.length)return true; // si no hay supervisor configurado, no filtra
+      const m=normalizeName(mgrValue);
+      if(!m)return false;
+      // Todas las palabras significativas de mi nombre deben aparecer
+      return myWords.every(w=>m.includes(w));
+    }
+    
+    const data=load();
+    const collabSet=new Set(data.collaborators.map(c=>normalizeName(cName(c))));
+    
+    // MODO REEMPLAZAR: arrancar lista vacía
+    const finalMap=new Map();
+    const finalAnnivMap=new Map();
+    
+    let added=0,addedAnniv=0,invalid=0,invalidAnniv=0,linked=0,skipped=0,noMgr=0;
+    
+    for(const row of rows){
+      const name=String(row[nameKey]||'').trim();
+      const dateRaw=row[dateKey];
+      if(!name)continue;
+      
+      // Filtrar por manager si tenemos columna y supervisor configurado
+      if(mgrKey&&myWords.length){
+        const mgrVal=row[mgrKey];
+        if(!isMyManager(mgrVal)){skipped++;continue;}
+      }else if(!mgrKey&&myWords.length){
+        noMgr++;
+      }
+      
+      // Convertir "Apellido, Nombre" a "Nombre Apellido" si aplica
+      let displayName=name;
+      if(name.includes(',')){
+        const parts=name.split(',').map(s=>s.trim());
+        if(parts.length===2)displayName=parts[1]+' '+parts[0];
+      }
+      const isLinked=collabSet.has(normalizeName(displayName))||collabSet.has(normalizeName(name));
+      if(isLinked)linked++;
+      
+      // Cumpleaños
+      const parsed=parseBirthdayDate(dateRaw);
+      if(parsed&&parsed.day&&parsed.month){
+        finalMap.set(normalizeName(displayName),{
+          name:displayName,day:parsed.day,month:parsed.month,year:parsed.year||null,
+          linked:isLinked,manager:mgrKey?String(row[mgrKey]||'').trim():''
+        });
+        added++;
+      }else if(dateRaw){
+        invalid++;
+      }
+      
+      // Aniversario (Hire Date)
+      if(hireKey){
+        const hireRaw=row[hireKey];
+        const hireParsed=parseBirthdayDate(hireRaw);
+        if(hireParsed&&hireParsed.day&&hireParsed.month){
+          finalAnnivMap.set(normalizeName(displayName),{
+            name:displayName,day:hireParsed.day,month:hireParsed.month,year:hireParsed.year||null,
+            linked:isLinked,manager:mgrKey?String(row[mgrKey]||'').trim():''
+          });
+          addedAnniv++;
+        }else if(hireRaw){
+          invalidAnniv++;
+        }
+      }
+    }
+    
+    saveBirthdays(Array.from(finalMap.values()));
+    if(hireKey)saveAnniversaries(Array.from(finalAnnivMap.values()));
+    renderBirthdaysList();
+    renderCalendar();
+    
+    let msg=`✓ ${added} cumpleaños`;
+    if(hireKey)msg+=` · ${addedAnniv} aniversarios`;
+    if(linked)msg+=` · ${linked} vinculados 🔗`;
+    if(skipped)msg+=` · ${skipped} de otros supervisores omitidos`;
+    if(invalid+invalidAnniv)msg+=` · ${invalid+invalidAnniv} fechas inválidas`;
+    if(!hireKey)msg+=' (no se encontró columna Hire Date)';
+    showToast(msg,6000);
+    
+    if(!added&&skipped){
+      setTimeout(()=>showToast('⚠ Ningún colaborador coincidió con tu nombre de supervisor. Revisa "Mi Línea".',6000),500);
+    }
+  }catch(e){
+    console.error('[Cumpleaños] Error import:',e);
+    showToast('Error al importar: '+e.message,5000);
+  }
+}
+
+function downloadBirthdayTemplate(){
+  if(typeof XLSX==='undefined'){
+    showToast('Librería XLSX no cargada',3000);
+    return;
+  }
+  const data=[
+    {Nombre:'Juan Pérez García', 'Fecha de Cumpleaños':'15/03/1990'},
+    {Nombre:'María López Ruiz',  'Fecha de Cumpleaños':'02/07/1985'},
+    {Nombre:'Pedro Sánchez',     'Fecha de Cumpleaños':'28/12/1992'}
+  ];
+  const ws=XLSX.utils.json_to_sheet(data);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Cumpleaños');
+  XLSX.writeFile(wb,'plantilla_cumpleanios.xlsx');
+}
+
+function renderBirthdaysList(){
+  const list=document.getElementById('bday-list');
+  const countEl=document.getElementById('bday-count');
+  const linkInfo=document.getElementById('bday-link-info');
+  const monthSel=document.getElementById('bday-month');
+  if(!list)return;
+  
+  const isAnniv=bdayViewMode==='annivs';
+  const all=isAnniv?loadAnniversaries():loadBirthdays();
+  const totalBdays=loadBirthdays().length;
+  const totalAnnivs=loadAnniversaries().length;
+  if(countEl)countEl.textContent=`🎂 ${totalBdays} · 🎉 ${totalAnnivs}`;
+  
+  // Re-vincular dinámicamente
+  const data=load();
+  const collabSet=new Set(data.collaborators.map(c=>normalizeName(cName(c))));
+  all.forEach(b=>b.linked=collabSet.has(normalizeName(b.name)));
+  const linkedCount=all.filter(b=>b.linked).length;
+  if(linkInfo)linkInfo.textContent=`🔗 ${linkedCount} vinculados con colaboradores`;
+  
+  const emoji=isAnniv?'🎉':'🎂';
+  const tipoNombre=isAnniv?'aniversarios':'cumpleaños';
+  
+  if(!all.length){
+    list.innerHTML=`<div style="padding:30px;text-align:center;color:#94a3b8;">
+      <div style="font-size:2.5rem;">${emoji}</div>
+      <div style="margin-top:10px;font-weight:600;">No hay ${tipoNombre} registrados</div>
+      <div style="font-size:.85rem;margin-top:6px;">Importa el numérico para empezar</div>
+    </div>`;
+    return;
+  }
+  
+  const monthVal=monthSel?+monthSel.value:0;
+  const today=new Date();
+  let targetMonth;
+  if(monthVal===0)targetMonth=today.getMonth()+1;
+  else if(monthVal===-1)targetMonth=null;
+  else targetMonth=monthVal;
+  
+  let filtered=all;
+  if(targetMonth!==null)filtered=all.filter(b=>b.month===targetMonth);
+  filtered.sort((a,b)=>(a.month-b.month)||(a.day-b.day));
+  
+  if(!filtered.length){
+    list.innerHTML=`<div style="padding:30px;text-align:center;color:#94a3b8;">
+      Sin ${tipoNombre} en ${MONTH_NAMES[targetMonth-1]||'el período seleccionado'}
+    </div>`;
+    return;
+  }
+  
+  const byMonth={};
+  filtered.forEach(b=>{
+    if(!byMonth[b.month])byMonth[b.month]=[];
+    byMonth[b.month].push(b);
+  });
+  
+  const todayDay=today.getDate();
+  const todayMonth=today.getMonth()+1;
+  const todayYear=today.getFullYear();
+  
+  const accentColor=isAnniv?'#16a34a':'#ec4899';
+  
+  let html='';
+  Object.keys(byMonth).sort((a,b)=>+a-+b).forEach(mNum=>{
+    const m=+mNum;
+    html+=`<div style="margin-bottom:18px;">
+      <div style="font-size:1rem;font-weight:800;color:#0f172a;padding:10px 14px;background:#f1f5f9;border-radius:8px 8px 0 0;border-left:4px solid ${accentColor};">
+        ${emoji} ${MONTH_NAMES[m-1]} <span style="color:#64748b;font-weight:600;font-size:.85rem;">(${byMonth[m].length})</span>
+      </div>
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;">`;
+    byMonth[m].forEach((b,i)=>{
+      const isToday=(b.month===todayMonth&&b.day===todayDay);
+      const isPast=(b.month<todayMonth||(b.month===todayMonth&&b.day<todayDay));
+      let detalleHTML='';
+      if(isAnniv){
+        if(b.year){
+          const yearsCompleted=todayYear-b.year-(isPast?0:1);
+          const yearsNext=yearsCompleted+1;
+          detalleHTML=`<div style="font-size:.75rem;color:#64748b;">Cumple <b>${yearsNext} año${yearsNext===1?'':'s'}</b> en GM${isToday?' 🎉 ¡HOY!':''} · Ingresó: ${String(b.day).padStart(2,'0')}/${String(b.month).padStart(2,'0')}/${b.year}</div>`;
+        }else if(isToday){
+          detalleHTML='<div style="font-size:.75rem;color:#16a34a;font-weight:700;">🎉 ¡HOY!</div>';
+        }
+      }else{
+        const age=b.year?(todayYear-b.year):null;
+        const ageNext=age!==null?(isPast?age+1:age):null;
+        detalleHTML=age!==null?`<div style="font-size:.75rem;color:#64748b;">Cumple ${ageNext} año${ageNext===1?'':'s'}${isToday?' 🎉 ¡HOY!':''}</div>`:(isToday?'<div style="font-size:.75rem;color:#ec4899;font-weight:700;">🎉 ¡HOY!</div>':'');
+      }
+      const bg=isToday?'#fef3c7':(i%2===0?'#ffffff':'#fafbfc');
+      html+=`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:${bg};border-bottom:${i<byMonth[m].length-1?'1px solid #f1f5f9':'none'};">
+        <div style="min-width:48px;text-align:center;font-weight:800;color:${accentColor};font-size:1.15rem;">${String(b.day).padStart(2,'0')}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:#0f172a;font-size:.92rem;">${esc(b.name)} ${b.linked?'<span title="Vinculado con colaborador" style="color:#16a34a;">🔗</span>':''}</div>
+          ${detalleHTML}
+        </div>
+        <button onclick="deleteBirthday('${esc(b.name).replace(/'/g,"\\'")}')" style="border:none;background:transparent;color:#ef4444;cursor:pointer;font-size:1.1rem;padding:4px 8px;" title="Eliminar">🗑</button>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  });
+  
+  list.innerHTML=html;
+}
+
+function deleteBirthday(name){
+  const tipo=bdayViewMode==='annivs'?'aniversario':'cumpleaños';
+  if(!confirm(`¿Eliminar el ${tipo} de ${name}?`))return;
+  const key=normalizeName(name);
+  if(bdayViewMode==='annivs'){
+    const all=loadAnniversaries();
+    saveAnniversaries(all.filter(b=>normalizeName(b.name)!==key));
+  }else{
+    const all=loadBirthdays();
+    saveBirthdays(all.filter(b=>normalizeName(b.name)!==key));
+  }
+  renderBirthdaysList();
+  renderCalendar();
+}
+
+// Helper para el calendario: obtiene cumpleaños del día
+function getBirthdaysForDay(year,month,day){
+  const all=loadBirthdays();
+  return all.filter(b=>b.day===day&&b.month===(month+1));
+}
+
+window.deleteBirthday=deleteBirthday;
+
+/* ══════════════════════════════════════════════════════════════════
+   GRÁFICAS Y ESTADÍSTICAS VISUALES
+══════════════════════════════════════════════════════════════════ */
+let chartsInstances={trends:null,top5:null,teams:null};
+
+// Registrar plugin de etiquetas
+if(typeof ChartDataLabels!=='undefined'){
+  Chart.register(ChartDataLabels);
+  // Desactivar por defecto, se activa manualmente en cada gráfica
+  Chart.defaults.plugins.datalabels.display=false;
+}
+
+function renderCharts(data,year,month){
+  // Destruir gráficas existentes
+  Object.values(chartsInstances).forEach(chart=>{if(chart)chart.destroy();});
+  
+  renderTrendsChart(data,year);
+  renderTop5Chart(data,year,month);
+  renderTeamsChart(data,year,month);
+}
+
+/**
+ * Gráfica de Tendencias Mensuales (Líneas)
+ */
+function renderTrendsChart(data,year){
+  const ctx=document.getElementById('chart-trends');
+  if(!ctx)return;
+  
+  // Contar incidencias por mes
+  const monthlyData=Array(12).fill(0);
+  
+  Object.entries(data.incidents).forEach(([dateKey,incs])=>{
+    const d=new Date(dateKey);
+    if(d.getFullYear()===year){
+      const m=d.getMonth();
+      monthlyData[m]+=Object.keys(incs).length;
+    }
+  });
+  
+  chartsInstances.trends=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:MONTHS,
+      datasets:[{
+        label:'Total de Incidencias',
+        data:monthlyData,
+        borderColor:'#1e40af',
+        backgroundColor:'rgba(30,64,175,0.1)',
+        tension:0.4,
+        fill:true,
+        pointRadius:5,
+        pointHoverRadius:8,
+        pointBackgroundColor:'#1e40af',
+        pointBorderColor:'#fff',
+        pointBorderWidth:2
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        datalabels:{
+          display:true,
+          align:'top',
+          anchor:'end',
+          color:'#1e40af',
+          font:{size:11,weight:'bold'},
+          formatter:v=>v>0?v:''
+        },
+        tooltip:{
+          backgroundColor:'#0f172a',
+          padding:12,
+          titleFont:{size:14,weight:'bold'},
+          bodyFont:{size:13},
+          callbacks:{
+            label:ctx=>` ${ctx.parsed.y} incidencias`
+          }
+        }
+      },
+      scales:{
+        y:{
+          beginAtZero:true,
+          ticks:{precision:0},
+          grid:{color:'#e2e8f0'}
+        },
+        x:{
+          grid:{display:false}
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Gráfica Top 5 Incidencias (Barras)
+ */
+function renderTop5Chart(data,year,month){
+  const ctx=document.getElementById('chart-top5');
+  if(!ctx)return;
+  
+  // Contar cada tipo de incidencia
+  const counts={};
+  INCIDENTS.forEach(inc=>counts[inc.id]=0);
+  
+  Object.entries(data.incidents).forEach(([dateKey,incs])=>{
+    const d=new Date(dateKey);
+    const yearMatch=d.getFullYear()===year;
+    const monthMatch=month===null||d.getMonth()===month;
+    if(yearMatch&&monthMatch){
+      Object.values(incs).forEach(incId=>{
+        if(counts[incId]!==undefined)counts[incId]++;
+      });
+    }
+  });
+  
+  // Ordenar y tomar top 5
+  const sorted=Object.entries(counts)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,5)
+    .filter(([_,count])=>count>0);
+  
+  if(!sorted.length){
+    // Sin datos
+    ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height);
+    return;
+  }
+  
+  const labels=sorted.map(([id])=>{
+    const inc=INC_MAP[id];
+    return inc?`${inc.id} - ${inc.name}`:id;
+  });
+  const values=sorted.map(([_,count])=>count);
+  const colors=sorted.map(([id])=>{
+    const inc=INC_MAP[id];
+    return inc?inc.color:'#94a3b8';
+  });
+  
+  chartsInstances.top5=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'Cantidad',
+        data:values,
+        backgroundColor:colors,
+        borderColor:colors.map(c=>c),
+        borderWidth:2,
+        borderRadius:8
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        datalabels:{
+          display:true,
+          anchor:'end',
+          align:'top',
+          color:'#0f172a',
+          font:{size:13,weight:'bold'},
+          formatter:v=>v
+        },
+        tooltip:{
+          backgroundColor:'#0f172a',
+          padding:12,
+          titleFont:{size:14,weight:'bold'},
+          bodyFont:{size:13}
+        }
+      },
+      scales:{
+        y:{
+          beginAtZero:true,
+          ticks:{precision:0},
+          grid:{color:'#e2e8f0'}
+        },
+        x:{
+          grid:{display:false},
+          ticks:{
+            font:{size:11,weight:'bold'},
+            color:'#0f172a',
+            padding:8,
+            autoSkip:false,
+            maxRotation:0,
+            minRotation:0
+          }
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Gráfica Distribución por Equipo (Pie)
+ */
+function renderTeamsChart(data,year,month){
+  const ctx=document.getElementById('chart-teams');
+  if(!ctx)return;
+  
+  // Contar incidencias por equipo
+  const teamCounts={};
+  
+  Object.entries(data.incidents).forEach(([dateKey,incs])=>{
+    const d=new Date(dateKey);
+    const yearMatch=d.getFullYear()===year;
+    const monthMatch=month===null||d.getMonth()===month;
+    if(yearMatch&&monthMatch){
+      Object.keys(incs).forEach(collabName=>{
+        const collab=data.collaborators.find(c=>cName(c)===collabName);
+        if(collab){
+          const team=typeof collab==="string"?"Sin equipo":collab.equipo||"Sin equipo";
+          teamCounts[team]=(teamCounts[team]||0)+1;
+        }
+      });
+    }
+  });
+  
+  const entries=Object.entries(teamCounts).sort((a,b)=>b[1]-a[1]);
+  
+  if(!entries.length){
+    ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height);
+    return;
+  }
+  
+  const labels=entries.map(([team])=>`Equipo ${team}`);
+  const values=entries.map(([_,count])=>count);
+  
+  // Paleta de colores profesional
+  const colorPalette=[
+    '#1e40af','#dc2626','#16a34a','#f59e0b','#8b5cf6',
+    '#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'
+  ];
+  const colors=entries.map((_,i)=>colorPalette[i%colorPalette.length]);
+  
+  chartsInstances.teams=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels,
+      datasets:[{
+        data:values,
+        backgroundColor:colors,
+        borderColor:'#fff',
+        borderWidth:3
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        datalabels:{
+          display:true,
+          color:'#fff',
+          font:{size:14,weight:'bold'},
+          formatter:(v,ctx)=>{
+            const total=ctx.dataset.data.reduce((a,b)=>a+b,0);
+            const percent=((v/total)*100).toFixed(1);
+            return `${v}\n${percent}%`;
+          }
+        },
+        legend:{
+          position:'right',
+          labels:{
+            padding:12,
+            font:{size:12},
+            generateLabels:chart=>{
+              const data=chart.data;
+              return data.labels.map((label,i)=>{
+                const value=data.datasets[0].data[i];
+                const total=data.datasets[0].data.reduce((a,b)=>a+b,0);
+                const percent=((value/total)*100).toFixed(1);
+                return{
+                  text:`${label}: ${value} (${percent}%)`,
+                  fillStyle:data.datasets[0].backgroundColor[i],
+                  hidden:false,
+                  index:i
+                };
+              });
+            }
+          }
+        },
+        tooltip:{
+          backgroundColor:'#0f172a',
+          padding:12,
+          titleFont:{size:14,weight:'bold'},
+          bodyFont:{size:13},
+          callbacks:{
+            label:ctx=>{
+              const total=ctx.dataset.data.reduce((a,b)=>a+b,0);
+              const percent=((ctx.parsed/total)*100).toFixed(1);
+              return ` ${ctx.parsed} incidencias (${percent}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SISTEMA DE ALERTAS DE VACACIONES SIMULTÁNEAS
+══════════════════════════════════════════════════════════════════ */
+
+// Configuración de alertas
+function getAlertConfig(){
+  try{
+    const cfg=JSON.parse(localStorage.getItem(ALERT_CONFIG_STORE));
+    if(cfg)return cfg;
+  }catch{}
+  return{dayRange:0,minPeople:3,maxAbsences:3}; // Por defecto: mismo día, 3+ personas, >3 faltas
+}
+
+function saveAlertConfig(cfg){
+  localStorage.setItem(ALERT_CONFIG_STORE,JSON.stringify(cfg));
+}
+
+// Gestión de alertas persistentes
+function loadAlerts(){
+  try{
+    const alerts=JSON.parse(localStorage.getItem(ALERTS_STORE))||[];
+    return alerts;
+  }catch{
+    return[];
+  }
+}
+
+function saveAlerts(alerts){
+  localStorage.setItem(ALERTS_STORE,JSON.stringify(alerts));
+  updateNotificationBadge();
+}
+
+function updateNotificationBadge(){
+  const alerts=loadAlerts();
+  const pendingCount=alerts.filter(a=>a.status==="pending").length;
+  const badge=document.getElementById("notif-count");
+  const tabBadge=document.getElementById("tab-notif-badge");
+  
+  if(pendingCount>0){
+    badge.textContent=pendingCount;
+    badge.style.display="";
+    tabBadge.textContent=pendingCount;
+    tabBadge.style.display="";
+  }else{
+    badge.style.display="none";
+    tabBadge.style.display="none";
+  }
+}
+
+/**
+ * Verificar si un colaborador tiene exceso de faltas en el mes
+ */
+function checkAbsenceAlert(data,collabName){
+  const collab=data.collaborators.find(c=>cName(c)===collabName);
+  if(!collab)return;
+  
+  const config=getAlertConfig();
+  const maxAllowed=config.maxAbsences||3;
+  const today=new Date();
+  const year=today.getFullYear();
+  const month=today.getMonth();
+  
+  // Contar faltas del colaborador en el mes actual
+  let absenceCount=0;
+  const absenceDates=[];
+  
+  Object.entries(data.incidents).forEach(([date,inc])=>{
+    const d=new Date(date);
+    if(d.getFullYear()===year&&d.getMonth()===month&&inc[collabName]){
+      if(ABSENCE_TYPES.has(inc[collabName])){
+        absenceCount++;
+        absenceDates.push(date);
+      }
+    }
+  });
+  
+  // Si tiene más de lo permitido, crear/actualizar alerta
+  if(absenceCount>maxAllowed){
+    const alertId=`absence_${collabName}_${year}_${month}`;
+    const alerts=loadAlerts();
+    
+    // Verificar si ya existe
+    const existingIdx=alerts.findIndex(a=>a.id===alertId);
+    
+    if(existingIdx>=0){
+      // Actualizar alerta existente
+      alerts[existingIdx].count=absenceCount;
+      alerts[existingIdx].dates=absenceDates;
+      alerts[existingIdx].updated=new Date().toISOString();
+      saveAlerts(alerts);
+    }else{
+      // Crear nueva alerta
+      const monthName=MONTHS[month];
+      alerts.push({
+        id:alertId,
+        type:"absence",
+        collaborator:collabName,
+        count:absenceCount,
+        limit:maxAllowed,
+        dates:absenceDates,
+        year,
+        month,
+        status:"pending",
+        created:new Date().toISOString(),
+        history:[]
+      });
+      saveAlerts(alerts);
+      showToast(`⚠️ ALERTA: ${collabName} tiene ${absenceCount} faltas en ${monthName} (límite: ${maxAllowed})`,5000);
+      
+      // Simular email
+      console.log(`%c[SIMULACIÓN EMAIL]
+Para: supervisor@gm.com
+Asunto: 🚨 Alerta de Exceso de Faltas
+
+El colaborador ${collabName} ha acumulado ${absenceCount} faltas en ${monthName} ${year}, superando el límite de ${maxAllowed}.
+
+Fechas: ${absenceDates.join(", ")}
+
+Por favor revisa esta situación.`,"color: #dc2626; font-weight: bold;");
+    }
+  }else{
+    // Si ya no supera el límite, eliminar alerta si existe
+    const alertId=`absence_${collabName}_${year}_${month}`;
+    const alerts=loadAlerts();
+    const filtered=alerts.filter(a=>a.id!==alertId);
+    if(filtered.length!==alerts.length){
+      saveAlerts(filtered);
+    }
+  }
+}
+
+/**
+ * Crear alerta cuando se detecta conflicto
+ */
+function checkAndCreateAlert(data,collabName,dateKey){
+  const collab=data.collaborators.find(c=>cName(c)===collabName);
+  if(!collab||!collab.equipo)return;
+  
+  const team=collab.equipo;
+  const config=getAlertConfig();
+  
+  // Contar cuántas personas del mismo equipo tienen vacaciones el mismo día (o en rango)
+  const targetDate=new Date(dateKey);
+  const conflicts=[];
+  
+  data.collaborators.forEach(c=>{
+    if(c.equipo!==team)return;
+    const name=cName(c);
+    
+    Object.entries(data.incidents).forEach(([date,inc])=>{
+      if(inc[name]==="VAC"){
+        const vacDate=new Date(date);
+        const diffDays=Math.abs((vacDate-targetDate)/(1000*60*60*24));
+        
+        if(diffDays<=config.dayRange){
+          if(!conflicts.find(x=>x.name===name)){
+            conflicts.push({name,date});
+          }
+        }
+      }
+    });
+  });
+  
+  // Si hay 3+ personas (incluyendo la recién agregada), crear alerta
+  if(conflicts.length>=config.minPeople){
+    const alertId=`${team}_${dateKey}_${Date.now()}`;
+    const alerts=loadAlerts();
+    
+    // Verificar si ya existe una alerta similar
+    const exists=alerts.find(a=>a.team===team&&a.date===dateKey&&a.status==="pending");
+    if(exists){
+      // Actualizar alerta existente
+      exists.collaborators=conflicts.map(c=>c.name);
+      exists.count=conflicts.length;
+      saveAlerts(alerts);
+      showToast(`⚠️ ALERTA ACTUALIZADA: ${conflicts.length} personas del Equipo ${team} con vacaciones el ${new Date(dateKey).toLocaleDateString('es-MX')}`,5000);
+    }else{
+      // Crear nueva alerta
+      alerts.push({
+        id:alertId,
+        team,
+        date:dateKey,
+        collaborators:conflicts.map(c=>c.name),
+        count:conflicts.length,
+        status:"pending",
+        created:new Date().toISOString(),
+        history:[]
+      });
+      saveAlerts(alerts);
+      showToast(`🚨 NUEVA ALERTA: ${conflicts.length} personas del Equipo ${team} solicitan vacaciones el ${new Date(dateKey).toLocaleDateString('es-MX')}`,5000);
+      
+      // Simular envío de email
+      simulateEmailAlert(team,dateKey,conflicts);
+    }
+  }
+}
+
+/**
+ * Simular envío de email (en producción real esto llamaría a un backend)
+ */
+function simulateEmailAlert(team,date,conflicts){
+  const names=conflicts.map(c=>c.name).join(", ");
+  const msg=`[SIMULACIÓN EMAIL]
+Para: supervisor@gm.com
+Asunto: 🚨 Alerta de Vacaciones - Equipo ${team}
+
+Se detectó que ${conflicts.length} colaboradores del Equipo ${team} solicitaron vacaciones para el ${new Date(date).toLocaleDateString('es-MX')}:
+
+${names}
+
+Por favor revisa y aprueba/rechaza esta solicitud en el sistema.`;
+  
+  console.log("%c" + msg, "color: #0ea5e9; font-weight: bold;");
+  console.log("📧 Email simulado enviado exitosamente");
+}
+
+/**
+ * Aprobar una alerta
+ */
+function approveAlert(alertId,comment=""){
+  const alerts=loadAlerts();
+  const alert=alerts.find(a=>a.id===alertId);
+  if(!alert)return;
+  
+  alert.status="approved";
+  alert.resolvedAt=new Date().toISOString();
+  alert.history.push({action:"approved",timestamp:new Date().toISOString(),comment});
+  
+  saveAlerts(alerts);
+  renderAlertsList();
+  showToast("✓ Alerta aprobada exitosamente");
+  
+  // Simular confirmación por email
+  console.log(`%c[EMAIL] Alerta aprobada - Equipo ${alert.team}, Fecha: ${alert.date}`,"color: #16a34a; font-weight: bold;");
+}
+
+/**
+ * Rechazar una alerta
+ */
+function rejectAlert(alertId,comment=""){
+  const alerts=loadAlerts();
+  const alert=alerts.find(a=>a.id===alertId);
+  if(!alert)return;
+  
+  alert.status="rejected";
+  alert.resolvedAt=new Date().toISOString();
+  alert.history.push({action:"rejected",timestamp:new Date().toISOString(),comment});
+  
+  saveAlerts(alerts);
+  renderAlertsList();
+  showToast("✗ Alerta rechazada");
+  
+  // Simular notificación por email
+  console.log(`%c[EMAIL] Alerta rechazada - Equipo ${alert.team}, Fecha: ${alert.date}. Razón: ${comment}`,"color: #dc2626; font-weight: bold;");
+}
+
+/**
+ * Reenviar email de alerta
+ */
+function resendEmail(alertId){
+  const alerts=loadAlerts();
+  const alert=alerts.find(a=>a.id===alertId);
+  if(!alert)return;
+  
+  if(alert.type==="absence"){
+    // Email para alerta de faltas
+    const monthName=MONTHS[alert.month];
+    console.log(`%c[SIMULACIÓN EMAIL]
+Para: supervisor@gm.com
+Asunto: 🚨 Alerta de Exceso de Faltas
+
+El colaborador ${alert.collaborator} ha acumulado ${alert.count} faltas en ${monthName} ${alert.year}, superando el límite de ${alert.limit}.
+
+Fechas: ${alert.dates.join(", ")}
+
+Por favor revisa esta situación.`,"color: #dc2626; font-weight: bold;");
+  }else{
+    // Email para alerta de vacaciones
+    simulateEmailAlert(alert.team,alert.date,alert.collaborators.map(name=>({name})));
+  }
+  
+  showToast("📧 Email reenviado (ver consola)");
+}
+
+/**
+ * Renderizar lista de alertas en el panel dedicado
+ */
+function renderAlertsList(filter="all"){
+  const el=document.getElementById("alerts-list");
+  if(!el)return;
+  
+  let alerts=loadAlerts();
+  
+  if(filter!=="all"){
+    alerts=alerts.filter(a=>a.status===filter);
+  }
+  
+  // Ordenar por fecha de creación (más reciente primero)
+  alerts.sort((a,b)=>new Date(b.created)-new Date(a.created));
+  
+  if(!alerts.length){
+    el.innerHTML=`<div class="rh-empty" style="padding:32px;">Sin alertas ${filter==="all"?"":filter==="pending"?"pendientes":filter==="approved"?"aprobadas":"rechazadas"}.</div>`;
+    return;
+  }
+  
+  el.innerHTML=alerts.map(alert=>{
+    const statusClass=alert.status==="approved"?"approved":alert.status==="rejected"?"rejected":"pending";
+    const statusText=alert.status==="approved"?"Aprobada":alert.status==="rejected"?"Rechazada":"Pendiente";
+    const icon=alert.status==="approved"?"✓":alert.status==="rejected"?"✗":"⏳";
+    
+    // Alerta de vacaciones vs alerta de faltas
+    if(alert.type==="absence"){
+      const createdDate=new Date(alert.created).toLocaleString('es-MX');
+      const datesStr=alert.dates.slice(0,3).map(d=>new Date(d).toLocaleDateString('es-MX',{day:'numeric',month:'short'})).join(", ")+(alert.dates.length>3?` +${alert.dates.length-3} más`:"");
+      
+      let actionsHTML="";
+      if(alert.status==="pending"){
+        actionsHTML=`<div class="alert-actions">
+          <button class="btn-approve" onclick="approveAlert('${alert.id}')" title="Marcar como revisado">✓ Revisar</button>
+          <button class="btn-reject" onclick="rejectAlert('${alert.id}',prompt('Acción tomada (opcional):'))" title="Marcar como atendido">✓ Atender</button>
+        </div>`;
+      }
+      
+      let historyHTML="";
+      if(alert.history.length>0){
+        historyHTML=`<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:.75rem;color:#64748b;">
+          <b>Historial:</b> ${alert.history.map(h=>`${h.action} el ${new Date(h.timestamp).toLocaleString('es-MX')}${h.comment?` - ${h.comment}`:""}`).join(" | ")}
+        </div>`;
+      }
+      
+      return `<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;background:${alert.status==="pending"?"#fef2f2":"white"};">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;">
+          <div>
+            <span style="font-size:1.1rem;font-weight:700;color:#dc2626;">⚠️ Exceso de Faltas</span>
+            <span class="alert-status ${statusClass}">${icon} ${statusText}</span>
+          </div>
+          <div style="text-align:right;font-size:.75rem;color:#94a3b8;">
+            Creada: ${createdDate}
+          </div>
+        </div>
+        <div style="font-size:1rem;color:#0f172a;margin-bottom:6px;font-weight:600;">
+          ${esc(alert.collaborator)}
+        </div>
+        <div style="font-size:.88rem;color:#374151;margin-bottom:6px;">
+          <b>${alert.count} faltas</b> en ${MONTHS[alert.month]} ${alert.year} (límite: ${alert.limit})
+        </div>
+        <div style="font-size:.78rem;color:#64748b;">Fechas: ${datesStr}</div>
+        ${actionsHTML}
+        ${historyHTML}
+      </div>`;
+    }
+    
+    // Alerta de vacaciones
+    const collabsHTML=alert.collaborators.map(name=>`<span class="vac-collab-item">${esc(name)}</span>`).join("");
+    const dateObj=new Date(alert.date);
+    const dateStr=`${dateObj.getDate()} de ${MONTHS[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+    const createdDate=new Date(alert.created).toLocaleString('es-MX');
+    
+    let actionsHTML="";
+    if(alert.status==="pending"){
+      actionsHTML=`<div class="alert-actions">
+        <button class="btn-approve" onclick="approveAlert('${alert.id}')">✓ Aprobar</button>
+        <button class="btn-reject" onclick="rejectAlert('${alert.id}',prompt('Razón del rechazo (opcional):'))">✗ Rechazar</button>
+      </div>`;
+    }
+    
+    let historyHTML="";
+    if(alert.history.length>0){
+      historyHTML=`<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:.75rem;color:#64748b;">
+        <b>Historial:</b> ${alert.history.map(h=>`${h.action} el ${new Date(h.timestamp).toLocaleString('es-MX')}${h.comment?` - ${h.comment}`:""}`).join(" | ")}
+      </div>`;
+    }
+    
+    return `<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;">
+        <div>
+          <span style="font-size:1.1rem;font-weight:700;color:#0f172a;">Equipo ${alert.team}</span>
+          <span class="alert-status ${statusClass}">${icon} ${statusText}</span>
+        </div>
+        <div style="text-align:right;font-size:.75rem;color:#94a3b8;">
+          Creada: ${createdDate}
+        </div>
+      </div>
+      <div style="font-size:.88rem;color:#374151;margin-bottom:6px;">
+        <b>${alert.count} colaboradores</b> con vacaciones el <b>${dateStr}</b>
+      </div>
+      <div class="vac-collab-list">${collabsHTML}</div>
+      ${actionsHTML}
+      ${historyHTML}
+    </div>`;
+  }).join("");
+}
+
+function filterAlerts(status){
+  renderAlertsList(status);
+}
+
+/**
+ * Detecta todos los conflictos de vacaciones en el período (para análisis)
+ */
+function detectAllVacationConflicts(data,year,month){
+  const config=getAlertConfig();
+  const conflicts=[];
+  const processed=new Set();
+  
+  // Agrupar colaboradores por equipo
+  const teams={};
+  data.collaborators.forEach(c=>{
+    const eq=c.equipo||"Sin equipo";
+    if(!teams[eq])teams[eq]=[];
+    teams[eq].push(cName(c));
+  });
+  
+  // Para cada equipo, buscar conflictos
+  Object.entries(teams).forEach(([team,members])=>{
+    if(team==="Sin equipo"||members.length<config.minPeople)return;
+    
+    // Obtener todas las vacaciones del equipo en el período
+    const vacationsByDate={};
+    
+    members.forEach(name=>{
+      Object.entries(data.incidents).forEach(([date,inc])=>{
+        if(inc[name]==="VAC"){
+          const d=new Date(date);
+          const yearMatch=d.getFullYear()===year;
+          const monthMatch=month===null||d.getMonth()===month;
+          if(yearMatch&&monthMatch){
+            if(!vacationsByDate[date])vacationsByDate[date]=[];
+            vacationsByDate[date].push(name);
+          }
+        }
+      });
+    });
+    
+    // Verificar cada fecha
+    Object.entries(vacationsByDate).forEach(([date,names])=>{
+      if(names.length>=config.minPeople){
+        const key=`${team}|${date}`;
+        if(!processed.has(key)){
+          processed.add(key);
+          conflicts.push({
+            level:names.length>=4?"critical":"warning",
+            team,
+            collaborators:names,
+            dates:[date],
+            count:names.length
+          });
+        }
+      }
+    });
+  });
+  
+  return conflicts.sort((a,b)=>b.count-a.count);
+}
+
+/**
+ * Renderiza las alertas de vacaciones en el panel de análisis
+ */
+function renderVacationAlerts(data,year,month){
+  const el=document.getElementById("ana-vacation-alerts");
+  if(!el)return;
+  
+  const alerts=detectAllVacationConflicts(data,year,month);
+  
+  if(!alerts.length){
+    el.innerHTML=`<div class="rh-empty" style="padding:12px">&#10003; Sin conflictos de vacaciones detectados en el período.</div>`;
+    return;
+  }
+  
+  el.innerHTML=alerts.map(a=>{
+    const cls=a.level==="critical"?"vac-critical":"vac";
+    const icon=a.level==="critical"?"&#128680;":"&#9888;";
+    const collabsHTML=a.collaborators.map(name=>`<span class="vac-collab-item">${esc(name)}</span>`).join("");
+    const datesStr=a.dates.map(d=>{
+      const dt=new Date(d);
+      return `${dt.getDate()} ${MONTHS[dt.getMonth()].slice(0,3)}`;
+    }).join(", ");
+    
+    return `<div class="pat-alert ${cls}">
+      <span class="pat-icon">${icon}</span>
+      <div class="pat-msg">
+        <div><b>Equipo ${a.team}</b>: <b>${a.count} colaboradores</b> con vacaciones el mismo día</div>
+        <div class="vac-collab-list">${collabsHTML}</div>
+        <div class="vac-dates">Fecha: ${datesStr}</div>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 /* ═══════════════════════════════════════════
@@ -2549,6 +5047,16 @@ function applyAppConfig(cfg){
   document.getElementById("hdr-line-name").textContent=cfg.lineName||"Vestiduras 4";
   document.getElementById("hdr-supervisor").textContent=cfg.supervisor||"Supervisor";
   document.title=(cfg.lineName||"V4")+" \u2014 Control de Incidencias";
+  // Aplicar tema de color
+  applyTheme(cfg.theme);
+}
+
+function applyTheme(theme){
+  const root=document.documentElement;
+  const t=theme&&theme.c1&&theme.c2?theme:{c1:"#0f172a",c2:"#1e3a5f",acc:"#1e40af"};
+  root.style.setProperty("--gm-header-1",t.c1);
+  root.style.setProperty("--gm-header-2",t.c2);
+  root.style.setProperty("--gm-accent",t.acc||t.c2);
 }
 
 function selectSetupMode(mode){
@@ -2567,9 +5075,15 @@ function saveSetup(){
   const supervisor=document.getElementById("setup-supervisor").value.trim();
   if(!lineName){alert("Por favor ingresa el nombre de tu l\u00ednea.");return;}
   if(!supervisor){alert("Por favor ingresa tu nombre.");return;}
-  // SOLO guarda nombre de línea y supervisor — NUNCA toca datos ni cloud config
+  // Tema seleccionado (lo aplica el handler en vivo, lo guardamos al final)
+  const root=document.documentElement;
+  const theme={
+    c1:root.style.getPropertyValue("--gm-header-1").trim()||"#0f172a",
+    c2:root.style.getPropertyValue("--gm-header-2").trim()||"#1e3a5f",
+    acc:root.style.getPropertyValue("--gm-accent").trim()||"#1e40af"
+  };
   const existing=getAppConfig()||{};
-  const cfg={...existing, lineName, supervisor};
+  const cfg={...existing, lineName, supervisor, theme};
   localStorage.setItem(APP_CONFIG_KEY,JSON.stringify(cfg));
   applyAppConfig(cfg);
   closeSetup();
@@ -2580,6 +5094,20 @@ function openSetupModal(){
   const cfg=getAppConfig()||{};
   document.getElementById("setup-linename").value=cfg.lineName||"";
   document.getElementById("setup-supervisor").value=cfg.supervisor||"";
+  // Tema actual
+  const t=cfg.theme||{c1:"#0f172a",c2:"#1e3a5f",acc:"#1e40af"};
+  const c1Inp=document.getElementById("setup-color-1");
+  const c2Inp=document.getElementById("setup-color-2");
+  if(c1Inp)c1Inp.value=t.c1;
+  if(c2Inp)c2Inp.value=t.c2;
+  // Marcar swatch activo
+  document.querySelectorAll(".theme-swatch").forEach(b=>{
+    const matches=b.dataset.c1===t.c1&&b.dataset.c2===t.c2;
+    b.style.borderColor=matches?"#6366f1":"#e2e8f0";
+    b.style.boxShadow=matches?"0 0 0 2px rgba(99,102,241,.2)":"none";
+  });
+  // Indicador de almacenamiento
+  refreshStorageIndicator();
   document.getElementById("modal-setup").classList.add("open");
 }
 
@@ -2588,6 +5116,134 @@ function initSetup(){
   if(cfg){applyAppConfig(cfg);}
   else{openSetupModal();}
   document.getElementById("btn-open-setup").addEventListener("click",openSetupModal);
+  
+  // Selección de tema (preview en vivo)
+  document.querySelectorAll(".theme-swatch").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const c1=btn.dataset.c1, c2=btn.dataset.c2, acc=btn.dataset.acc;
+      applyTheme({c1,c2,acc});
+      document.getElementById("setup-color-1").value=c1;
+      document.getElementById("setup-color-2").value=c2;
+      document.querySelectorAll(".theme-swatch").forEach(b=>{
+        const sel=b===btn;
+        b.style.borderColor=sel?"#6366f1":"#e2e8f0";
+        b.style.boxShadow=sel?"0 0 0 2px rgba(99,102,241,.2)":"none";
+      });
+    });
+  });
+  
+  // Color personalizado
+  const btnApply=document.getElementById("setup-color-apply");
+  if(btnApply){
+    btnApply.addEventListener("click",()=>{
+      const c1=document.getElementById("setup-color-1").value;
+      const c2=document.getElementById("setup-color-2").value;
+      applyTheme({c1,c2,acc:c2});
+      document.querySelectorAll(".theme-swatch").forEach(b=>{
+        b.style.borderColor="#e2e8f0";
+        b.style.boxShadow="none";
+      });
+    });
+  }
+  // Backup / Restore
+  const btnBk=document.getElementById("setup-btn-backup");
+  const btnRs=document.getElementById("setup-btn-restore");
+  const fileRs=document.getElementById("setup-restore-file");
+  if(btnBk)btnBk.addEventListener("click",downloadBackup);
+  if(btnRs&&fileRs){
+    btnRs.addEventListener("click",()=>fileRs.click());
+    fileRs.addEventListener("change",e=>{
+      const f=e.target.files&&e.target.files[0];
+      if(f)restoreBackup(f);
+      fileRs.value="";
+    });
+  }
+}
+
+/* ═════════════════════════════════
+   BACKUP / RESTORE / STORAGE
+═════════════════════════════════ */
+const BACKUP_KEYS=["v4-control-incidencias","v4-vacation-alerts","v4-alert-config","v4-turno","v4-evidencias-rh","v4-cumpleanios","v4-aniversarios","v4-app-config"];
+
+function calcStorageStats(){
+  let total=0;
+  const detail={};
+  BACKUP_KEYS.forEach(k=>{
+    const v=localStorage.getItem(k);
+    const sz=v?(k.length+v.length)*2:0; // UTF-16 ~ 2 bytes/char
+    detail[k]=sz;
+    total+=sz;
+  });
+  // Estimación: la mayoría de navegadores dan ~5MB por origen
+  const limit=5*1024*1024;
+  return {total,limit,pct:Math.min(100,total/limit*100),detail};
+}
+
+function fmtBytes(b){
+  if(b<1024)return b+" B";
+  if(b<1024*1024)return (b/1024).toFixed(1)+" KB";
+  return (b/1024/1024).toFixed(2)+" MB";
+}
+
+function refreshStorageIndicator(){
+  const txt=document.getElementById("setup-storage-text");
+  const bar=document.getElementById("setup-storage-bar");
+  const det=document.getElementById("setup-storage-detail");
+  if(!txt||!bar)return;
+  const s=calcStorageStats();
+  txt.textContent=fmtBytes(s.total)+" / ~"+fmtBytes(s.limit)+" ("+s.pct.toFixed(0)+"%)";
+  bar.style.width=s.pct+"%";
+  // Color dinamico
+  let grad="linear-gradient(90deg,#10b981,#059669)";
+  if(s.pct>=80)grad="linear-gradient(90deg,#ef4444,#b91c1c)";
+  else if(s.pct>=60)grad="linear-gradient(90deg,#f59e0b,#d97706)";
+  bar.style.background=grad;
+  if(det){
+    const ev=s.detail["v4-evidencias-rh"]||0;
+    const inc=s.detail["v4-control-incidencias"]||0;
+    det.textContent="Evidencias: "+fmtBytes(ev)+" • Incidencias: "+fmtBytes(inc);
+  }
+}
+
+function downloadBackup(){
+  const data={version:1,exportedAt:new Date().toISOString(),app:"V4-Control-Incidencias",keys:{}};
+  BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data.keys[k]=v;});
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const cfg=getAppConfig()||{};
+  const slug=(cfg.lineName||"linea").replace(/[^a-z0-9]+/gi,"_").toLowerCase();
+  const stamp=new Date().toISOString().slice(0,10);
+  const a=document.createElement("a");
+  a.href=url;a.download="backup_"+slug+"_"+stamp+".json";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showToast("✓ Backup descargado");
+}
+
+function restoreBackup(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data||!data.keys||typeof data.keys!=="object"){
+        alert("Archivo de backup inválido.");return;
+      }
+      const found=Object.keys(data.keys).filter(k=>BACKUP_KEYS.indexOf(k)>=0);
+      if(found.length===0){alert("El archivo no contiene datos reconocibles.");return;}
+      const ok=confirm("⚠ Esto REEMPLAZARÁ toda la información actual con el backup ("+found.length+" secciones).\n\nFecha del backup: "+(data.exportedAt||"desconocida")+"\n\n¿Continuar?");
+      if(!ok)return;
+      // Limpiar y restaurar
+      BACKUP_KEYS.forEach(k=>localStorage.removeItem(k));
+      found.forEach(k=>localStorage.setItem(k,data.keys[k]));
+      showToast("✓ Backup restaurado. Recargando...",2000);
+      setTimeout(()=>location.reload(),1200);
+    }catch(err){
+      console.error(err);
+      alert("No se pudo leer el archivo: "+err.message);
+    }
+  };
+  reader.onerror=()=>alert("Error al leer el archivo.");
+  reader.readAsText(file);
 }
 
 /* ═══════════════════════════════════════════
@@ -2610,6 +5266,15 @@ function confirmClearAll(){
   renderCalendar();
   showToast("Todos los datos han sido eliminados","#dc2626");
   syncToCloud();
+}
+
+function resetCollabOrder(){
+  if(!confirm("¿Restablecer el orden automático de los colaboradores?\n\nSe perderá el orden personalizado."))return;
+  const data=load();
+  delete data.customOrder;
+  save(data);
+  renderCollabs();
+  showToast("✓ Orden restablecido");
 }
 
 /* ═══════════════════════════════════════════
@@ -2767,9 +5432,24 @@ function openCloudModal(){
   document.getElementById("input-line-code").value="";
   document.getElementById("input-api-key-create").value=DEFAULT_API_KEY; // pre-rellenar Master Key
   document.getElementById("autocreate-result").style.display="none";
+  
+  // Cargar configuración de alertas
+  const alertCfg=getAlertConfig();
+  document.getElementById("input-alert-range").value=alertCfg.dayRange;
+  document.getElementById("input-alert-min").value=alertCfg.minPeople;
+  document.getElementById("input-alert-absences").value=alertCfg.maxAbsences||3;
+  
   document.getElementById("modal-cloud").classList.add("open");
 }
-function closeCloudModal(){document.getElementById("modal-cloud").classList.remove("open");}
+function closeCloudModal(){
+  // Guardar configuración de alertas
+  const dayRange=parseInt(document.getElementById("input-alert-range").value)||0;
+  const minPeople=parseInt(document.getElementById("input-alert-min").value)||3;
+  const maxAbsences=parseInt(document.getElementById("input-alert-absences").value)||3;
+  saveAlertConfig({dayRange,minPeople,maxAbsences});
+  
+  document.getElementById("modal-cloud").classList.remove("open");
+}
 
 document.getElementById("btn-sync-status").addEventListener("click",openCloudModal);
 document.getElementById("btn-cloud-cancel").addEventListener("click",closeCloudModal);
@@ -2919,12 +5599,103 @@ function initCloudSync(){
   });
 })();
 
+/* ══════════════════════════════════════════════════════════════════
+   GESTOS DE SWIPE PARA CALENDARIO MÓVIL
+══════════════════════════════════════════════════════════════════ */
+let touchStartX=0,touchEndX=0;
+
+function initSwipeGestures(){
+  const calPanel=document.getElementById('panel-calendario');
+  if(!calPanel)return;
+  
+  calPanel.addEventListener('touchstart',e=>{
+    touchStartX=e.changedTouches[0].screenX;
+  },{passive:true});
+  
+  calPanel.addEventListener('touchend',e=>{
+    touchEndX=e.changedTouches[0].screenX;
+    handleSwipe();
+  },{passive:true});
+}
+
+function handleSwipe(){
+  const swipeThreshold=50;
+  const diff=touchStartX-touchEndX;
+  
+  if(Math.abs(diff)>swipeThreshold){
+    if(diff>0){
+      // Swipe izquierda: mes siguiente
+      changeMonth(1);
+    }else{
+      // Swipe derecha: mes anterior
+      changeMonth(-1);
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MENÚ HAMBURGUESA MÓVIL
+══════════════════════════════════════════════════════════════════ */
+function initMobileMenu(){
+  const menuBtn=document.getElementById('mobile-menu-btn');
+  const navTabs=document.getElementById('nav-tabs');
+  const overlay=document.getElementById('tabs-overlay');
+  const tabs=document.querySelectorAll('.tab');
+  
+  if(!menuBtn||!navTabs||!overlay)return;
+  
+  // Abrir menú
+  menuBtn.addEventListener('click',()=>{
+    navTabs.classList.add('show');
+    overlay.classList.add('show');
+    overlay.style.display='block';
+  });
+  
+  // Cerrar menú al hacer click en overlay
+  overlay.addEventListener('click',()=>{
+    closeMobileMenu();
+  });
+  
+  // Cerrar menú al seleccionar una tab
+  tabs.forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      setTimeout(()=>closeMobileMenu(),300);
+    });
+  });
+}
+
+function closeMobileMenu(){
+  const navTabs=document.getElementById('nav-tabs');
+  const overlay=document.getElementById('tabs-overlay');
+  
+  if(navTabs)navTabs.classList.remove('show');
+  if(overlay){
+    overlay.classList.remove('show');
+    setTimeout(()=>overlay.style.display='none',300);
+  }
+}
+
 /* INIT */
 updateTurnoLabel();
 renderLegend();
 renderCalendar();
 initCloudSync();
 initSetup();
+updateNotificationBadge(); // Actualizar badges de alertas al cargar
+initMobileMenu(); // Inicializar menú hamburguesa
+initSwipeGestures(); // Inicializar gestos de swipe
+
+// Event listener para cerrar modal de evidencias al hacer click fuera
+setTimeout(()=>{
+  const modalEv=document.getElementById('modal-evidence');
+  if(modalEv){
+    modalEv.addEventListener('click',e=>{
+      if(e.target===modalEv){
+        closeEvidenceModal();
+      }
+    });
+  }
+},100);
 </script>
 
 <footer class="app-footer">
