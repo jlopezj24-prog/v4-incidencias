@@ -20,8 +20,10 @@
     .app-header h1 { font-size:1.35rem; font-weight:800; letter-spacing:.4px; }
     .app-header .sub { font-size:.78rem; opacity:.65; margin-top:2px; }
     .header-date { font-size:.8rem; opacity:.65; text-align:right; }
-    .tabs { background:white; border-bottom:2px solid #e2e8f0; padding:0 20px; display:flex; }
-    .tab { padding:12px 22px; cursor:pointer; font-weight:500; font-size:.9rem; color:#64748b; border-bottom:3px solid transparent; margin-bottom:-2px; transition:color .2s,border-color .2s; user-select:none; }
+    .tabs { background:white; border-bottom:2px solid #e2e8f0; padding:0 20px; display:flex; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+    .tabs::-webkit-scrollbar { height:4px; }
+    .tabs::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:2px; }
+    .tab { padding:12px 22px; cursor:pointer; font-weight:500; font-size:.9rem; color:#64748b; border-bottom:3px solid transparent; margin-bottom:-2px; transition:color .2s,border-color .2s; user-select:none; white-space:nowrap; flex-shrink:0; }
     .tab:hover { color:#1e40af; }
     .tab.active { color:#1e40af; border-bottom-color:#1e40af; }
     .tab-panel { display:none; padding:20px 24px; }
@@ -141,7 +143,7 @@
     .btn-setup-save:hover { opacity:.9; }
     .btn-settings { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); color:white; padding:6px 10px; border-radius:7px; cursor:pointer; font-size:.8rem; transition:background .18s; margin-left:6px; }
     .btn-settings:hover { background:rgba(255,255,255,.25); }
-    @media(max-width:900px){
+    @media(max-width:1100px){
       /* HEADER */
       .app-header { padding:10px 16px; flex-wrap:wrap; gap:10px; }
       .gm-logo img { width:40px; height:40px; }
@@ -3786,6 +3788,35 @@ function saveAnniversaries(arr){
 // Modo de visualización: 'bdays' o 'annivs'
 let bdayViewMode='bdays';
 
+/* ══════════════════════════════
+   ZAPATOS POR ANIVERSARIO
+   Estructura en localStorage 'v4-zapatos':
+   { normalizedName: { size: "27", delivered: { 2026:true, 2025:true } } }
+══════════════════════════════ */
+const SHOES_KEY="v4-zapatos";
+function loadShoes(){try{return JSON.parse(localStorage.getItem(SHOES_KEY))||{};}catch{return {};}}
+function saveShoes(obj){localStorage.setItem(SHOES_KEY,JSON.stringify(obj||{}));}
+function getShoeInfo(name){
+  const all=loadShoes();
+  return all[normalizeName(name)]||{size:"",delivered:{}};
+}
+function setShoeSize(name,size){
+  const all=loadShoes();
+  const k=normalizeName(name);
+  if(!all[k])all[k]={size:"",delivered:{}};
+  all[k].size=String(size||"").trim();
+  saveShoes(all);
+}
+function setShoeDelivered(name,year,delivered){
+  const all=loadShoes();
+  const k=normalizeName(name);
+  if(!all[k])all[k]={size:"",delivered:{}};
+  if(!all[k].delivered)all[k].delivered={};
+  if(delivered)all[k].delivered[year]=true;
+  else delete all[k].delivered[year];
+  saveShoes(all);
+}
+
 // Normaliza nombre para vincular (sin tildes, lowercase, sin espacios extra)
 function normalizeName(s){
   return String(s||"").trim().toLowerCase()
@@ -4227,15 +4258,32 @@ function renderBirthdaysList(){
   let html='';
   Object.keys(byMonth).sort((a,b)=>+a-+b).forEach(mNum=>{
     const m=+mNum;
+    // Resumen de zapatos del mes (solo en aniversarios)
+    let shoesSummary='';
+    if(isAnniv){
+      let pend=0,deli=0,sinSize=0;
+      byMonth[m].forEach(b=>{
+        const sh=getShoeInfo(b.name);
+        if(!sh.size)sinSize++;
+        if(sh.delivered&&sh.delivered[todayYear])deli++; else pend++;
+      });
+      shoesSummary=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#9a3412;font-size:.7rem;font-weight:700;border:1px solid #fed7aa;">\ud83d\udc5f \u23f3 ${pend} pendiente${pend===1?'':'s'}</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#ecfdf5;color:#047857;font-size:.7rem;font-weight:700;border:1px solid #a7f3d0;">\u2705 ${deli} entregado${deli===1?'':'s'}</span>
+        ${sinSize?`<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#fef2f2;color:#b91c1c;font-size:.7rem;font-weight:700;border:1px solid #fecaca;" title="Falta capturar n\u00famero de zapato">\u26a0 ${sinSize} sin n\u00famero</span>`:''}
+      </div>`;
+    }
     html+=`<div style="margin-bottom:18px;">
-      <div style="font-size:1rem;font-weight:800;color:#0f172a;padding:10px 14px;background:#f1f5f9;border-radius:8px 8px 0 0;border-left:4px solid ${accentColor};">
-        ${emoji} ${MONTH_NAMES[m-1]} <span style="color:#64748b;font-weight:600;font-size:.85rem;">(${byMonth[m].length})</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:1rem;font-weight:800;color:#0f172a;padding:10px 14px;background:#f1f5f9;border-radius:8px 8px 0 0;border-left:4px solid ${accentColor};">
+        <span>${emoji} ${MONTH_NAMES[m-1]} <span style="color:#64748b;font-weight:600;font-size:.85rem;">(${byMonth[m].length})</span></span>
+        ${shoesSummary?`<span style="margin-left:auto;">${shoesSummary}</span>`:''}
       </div>
       <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;">`;
     byMonth[m].forEach((b,i)=>{
       const isToday=(b.month===todayMonth&&b.day===todayDay);
       const isPast=(b.month<todayMonth||(b.month===todayMonth&&b.day<todayDay));
       let detalleHTML='';
+      let shoesHTML='';
       if(isAnniv){
         if(b.year){
           const yearsCompleted=todayYear-b.year-(isPast?0:1);
@@ -4244,19 +4292,35 @@ function renderBirthdaysList(){
         }else if(isToday){
           detalleHTML='<div style="font-size:.75rem;color:#16a34a;font-weight:700;">🎉 ¡HOY!</div>';
         }
+        // 👟 Bloque zapatos (solo en aniversarios)
+        const shoe=getShoeInfo(b.name);
+        const delivered=!!(shoe.delivered&&shoe.delivered[todayYear]);
+        const safeName=esc(b.name).replace(/'/g,"\\'");
+        shoesHTML=`<div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:${delivered?'#ecfdf5':'#fff7ed'};border:1px solid ${delivered?'#a7f3d0':'#fed7aa'};border-radius:6px;flex-wrap:wrap;">
+          <span style="font-size:.92rem;">👟</span>
+          <label style="font-size:.72rem;color:#475569;font-weight:700;">Número:</label>
+          <input type="text" value="${esc(shoe.size||'')}" placeholder="--" maxlength="6" onchange="setShoeSize('${safeName}',this.value);renderBirthdaysList();" style="width:55px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;text-align:center;font-weight:700;" title="Número de zapato (ej. 26.5, 27, 28)">
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;color:${delivered?'#047857':'#9a3412'};font-weight:700;cursor:pointer;margin-left:auto;">
+            <input type="checkbox" ${delivered?'checked':''} onchange="setShoeDelivered('${safeName}',${todayYear},this.checked);renderBirthdaysList();" style="width:16px;height:16px;cursor:pointer;">
+            ${delivered?'✅ Entregado '+todayYear:'⏳ Pendiente '+todayYear}
+          </label>
+        </div>`;
       }else{
         const age=b.year?(todayYear-b.year):null;
         const ageNext=age!==null?(isPast?age+1:age):null;
         detalleHTML=age!==null?`<div style="font-size:.75rem;color:#64748b;">Cumple ${ageNext} año${ageNext===1?'':'s'}${isToday?' 🎉 ¡HOY!':''}</div>`:(isToday?'<div style="font-size:.75rem;color:#ec4899;font-weight:700;">🎉 ¡HOY!</div>':'');
       }
       const bg=isToday?'#fef3c7':(i%2===0?'#ffffff':'#fafbfc');
-      html+=`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:${bg};border-bottom:${i<byMonth[m].length-1?'1px solid #f1f5f9':'none'};">
-        <div style="min-width:48px;text-align:center;font-weight:800;color:${accentColor};font-size:1.15rem;">${String(b.day).padStart(2,'0')}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;color:#0f172a;font-size:.92rem;">${esc(b.name)} ${b.linked?'<span title="Vinculado con colaborador" style="color:#16a34a;">🔗</span>':''}</div>
-          ${detalleHTML}
+      html+=`<div style="padding:10px 14px;background:${bg};border-bottom:${i<byMonth[m].length-1?'1px solid #f1f5f9':'none'};">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="min-width:48px;text-align:center;font-weight:800;color:${accentColor};font-size:1.15rem;">${String(b.day).padStart(2,'0')}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;color:#0f172a;font-size:.92rem;">${esc(b.name)} ${b.linked?'<span title="Vinculado con colaborador" style="color:#16a34a;">🔗</span>':''}</div>
+            ${detalleHTML}
+          </div>
+          <button onclick="deleteBirthday('${esc(b.name).replace(/'/g,"\\'")}')" style="border:none;background:transparent;color:#ef4444;cursor:pointer;font-size:1.1rem;padding:4px 8px;" title="Eliminar">🗑</button>
         </div>
-        <button onclick="deleteBirthday('${esc(b.name).replace(/'/g,"\\'")}')" style="border:none;background:transparent;color:#ef4444;cursor:pointer;font-size:1.1rem;padding:4px 8px;" title="Eliminar">🗑</button>
+        ${shoesHTML}
       </div>`;
     });
     html+=`</div></div>`;
@@ -5455,7 +5519,7 @@ function initSetup(){
 /* ═════════════════════════════════
    BACKUP / RESTORE / STORAGE
 ═════════════════════════════════ */
-const BACKUP_KEYS=["v4-control-incidencias","v4-vacation-alerts","v4-alert-config","v4-turno","v4-evidencias-rh","v4-cumpleanios","v4-aniversarios","v4-app-config"];
+const BACKUP_KEYS=["v4-control-incidencias","v4-vacation-alerts","v4-alert-config","v4-turno","v4-evidencias-rh","v4-cumpleanios","v4-aniversarios","v4-zapatos","v4-app-config"];
 
 function calcStorageStats(){
   let total=0;
