@@ -6308,7 +6308,14 @@ document.getElementById("btn-cloud-autocreate").addEventListener("click",async()
 document.getElementById("btn-cloud-save").addEventListener("click",async()=>{
   const apiKey=document.getElementById("input-api-key").value.trim();
   const binId=document.getElementById("input-bin-id").value.trim();
-  if(!apiKey||!binId){alert("Ingresa ambos campos: Master Key y BIN ID");return;}
+  // Si ya está conectado y los campos están vacíos, solo guardar config de alertas
+  const existingCloud=localStorage.getItem(CLOUD_KEY);
+  if(!apiKey&&!binId&&existingCloud){
+    closeCloudModal();
+    showToast("Configuraci\u00f3n de alertas guardada \u2713");
+    return;
+  }
+  if(!apiKey||!binId){alert("Ingresa ambos campos: Master Key y BIN ID\n\n(O si solo quieres guardar la configuraci\u00f3n de alertas, presiona Cancelar)");return;}
   const btn=document.getElementById("btn-cloud-save");
   btn.textContent="Conectando...";btn.disabled=true;
   localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey,binId}));
