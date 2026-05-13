@@ -162,14 +162,14 @@
       .btn-settings { font-size:.72rem; padding:6px 10px; min-width:auto; }
       .btn-notif { width:44px; height:44px; font-size:1.2rem; }
       
-      /* MENÚ HAMBURGUESA */
-      .mobile-menu-btn { display:block; }
-      .tabs { position:fixed; left:-100%; top:0; bottom:0; width:280px; max-width:85vw; background:white; flex-direction:column; padding:60px 0 20px; overflow-y:auto; box-shadow:4px 0 12px rgba(0,0,0,.15); transition:left .3s ease; z-index:9999; border-right:1px solid #e2e8f0; border-bottom:none; }
-      .tabs.show { left:0; }
-      .tabs::-webkit-scrollbar { width:6px; }
-      .tabs::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
-      .tab { padding:16px 20px; font-size:.9rem; white-space:normal; flex-shrink:0; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:10px; min-height:56px; }
-      .tab.active { background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%); color:white; border-left:4px solid #1e3a8a; }
+      /* MENÚ HORIZONTAL CON SCROLL EN MÓVIL (Opción A) */
+      .mobile-menu-btn { display:none !important; }
+      .tabs-overlay { display:none !important; }
+      .tabs { position:sticky; top:0; left:0; right:0; width:100%; max-width:100%; padding:0 8px; display:flex; flex-direction:row; background:white; border-bottom:2px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,.06); overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; z-index:100; scroll-snap-type:x proximity; }
+      .tabs::-webkit-scrollbar { height:3px; }
+      .tabs::-webkit-scrollbar-thumb { background:#94a3b8; border-radius:2px; }
+      .tab { padding:11px 14px; font-size:.78rem; font-weight:600; white-space:nowrap; flex-shrink:0; min-height:auto; border-bottom:3px solid transparent; border-left:none !important; background:transparent; color:#64748b; scroll-snap-align:start; display:inline-block; }
+      .tab.active { background:transparent; color:#1e40af; border-bottom-color:#1e40af; border-left:none !important; }
       .tab:not(.active):active { background:#f1f5f9; }
       
       /* BOTONES MÁS GRANDES PARA DEDOS */
@@ -1386,8 +1386,22 @@ function save(d){
   // Incluir config de turno en el objeto de nube
   d.turno=getTurno();
   d._ts=Date.now();
+  // Incluir TODAS las claves auxiliares (cumpleaños, aniversarios, zapatos, evidencias, alertas, app-config)
+  // para que se sincronicen a la nube y se restauren en otros dispositivos
+  try{
+    d._extras={};
+    ["v4-cumpleanios","v4-aniversarios","v4-zapatos","v4-vacation-alerts","v4-alert-config","v4-evidencias-rh","v4-app-config"].forEach(k=>{
+      const v=localStorage.getItem(k);
+      if(v!==null)d._extras[k]=v;
+    });
+  }catch(e){console.warn("save extras error",e);}
   localStorage.setItem(STORE,JSON.stringify(d));
   syncToCloud(d);
+}
+
+// Helper para que módulos auxiliares (cumpleaños, aniversarios, zapatos, evidencias) propaguen a la nube
+function triggerCloudSync(){
+  try{ save(load()); }catch(e){ console.warn("triggerCloudSync",e); }
 }
 
 /* Helpers para estructura de colaborador {name, equipo, isLET} */
@@ -4204,6 +4218,7 @@ function loadBirthdays(){
 function saveBirthdays(arr){
   try{
     localStorage.setItem(BIRTHDAYS_STORE,JSON.stringify(arr));
+    if(typeof triggerCloudSync==="function")triggerCloudSync();
   }catch(e){
     showToast("Error al guardar cumpleaños: "+e.message,4000);
   }
@@ -4217,6 +4232,7 @@ function loadAnniversaries(){
 function saveAnniversaries(arr){
   try{
     localStorage.setItem(ANNIVERSARIES_STORE,JSON.stringify(arr));
+    if(typeof triggerCloudSync==="function")triggerCloudSync();
   }catch(e){
     showToast("Error al guardar aniversarios: "+e.message,4000);
   }
@@ -4232,7 +4248,7 @@ let bdayViewMode='bdays';
 ══════════════════════════════ */
 const SHOES_KEY="v4-zapatos";
 function loadShoes(){try{return JSON.parse(localStorage.getItem(SHOES_KEY))||{};}catch{return {};}}
-function saveShoes(obj){localStorage.setItem(SHOES_KEY,JSON.stringify(obj||{}));}
+function saveShoes(obj){localStorage.setItem(SHOES_KEY,JSON.stringify(obj||{}));if(typeof triggerCloudSync==="function")triggerCloudSync();}
 function getShoeInfo(name){
   const all=loadShoes();
   return all[normalizeName(name)]||{size:"",delivered:{}};
@@ -6186,8 +6202,16 @@ async function syncFromCloud(showResult, forceLoad){
           localStorage.setItem(TURNO_KEY,JSON.stringify(cloudData.turno));
           updateTurnoLabel();
         }
+        // Restaurar claves auxiliares (cumpleaños, aniversarios, zapatos, evidencias, alertas)
+        if(cloudData._extras&&typeof cloudData._extras==="object"){
+          Object.keys(cloudData._extras).forEach(k=>{
+            try{ localStorage.setItem(k, cloudData._extras[k]); }catch(e){ console.warn("restore extra "+k, e); }
+          });
+        }
         renderCalendar();
         renderLegend();
+        // Re-renderizar cumpleaños/aniversarios si la función existe
+        try{ if(typeof renderBirthdaysList==="function") renderBirthdaysList(); }catch(e){}
         if(showResult)showToast("Datos descargados de la nube correctamente");
       } else if(hasRealLocalData) {
         // Local tiene datos reales y es más reciente — empujar local a la nube
