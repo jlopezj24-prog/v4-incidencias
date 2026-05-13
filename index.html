@@ -3433,8 +3433,28 @@ function openPasteCollabsModal(){
       const txt=modal.querySelector('#paste-collabs-area').value;
       if(!txt||!txt.trim()){showToast('Pega primero el contenido del Excel',3000);return;}
       try{
-        const rows=parsePastedTable(txt);
-        if(!rows.length){showToast('No se detectaron filas válidas.',4000);return;}
+        // Parser raw: devuelve array de arrays (header en fila 0)
+        const text=txt.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+        const lines=text.split('\n').filter(l=>l.length>0);
+        while(lines.length&&!lines[lines.length-1].trim())lines.pop();
+        if(lines.length<2){showToast('No se detectaron filas válidas.',4000);return;}
+        const sep=detectSeparator(lines[0]);
+        const splitLine=(line)=>{
+          const out=[];let cur='',inQ=false;
+          for(let i=0;i<line.length;i++){
+            const c=line[i];
+            if(inQ){
+              if(c==='"'){if(line[i+1]==='"'){cur+='"';i++;}else inQ=false;}
+              else cur+=c;
+            }else{
+              if(c==='"')inQ=true;
+              else if(c===sep){out.push(cur);cur='';}
+              else cur+=c;
+            }
+          }
+          out.push(cur);return out;
+        };
+        const rows=lines.map(l=>splitLine(l).map(v=>v.trim()));
         modal.classList.remove('open');
         processCollabRows(rows);
       }catch(err){
