@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V4 Vestiduras — Control de Incidencias</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -2585,7 +2588,7 @@ function populateReporteFilters(){
   // collab select
   const cs=document.getElementById("rep-filter-collab");
   const prevC=cs.value;
-  cs.innerHTML=`<option value="">-- Selecciona colaborador --</option>`;
+  cs.innerHTML=`<option value="">-- Selecciona colaborador --</option><option value="__ALL__">📋 TODOS los colaboradores (para PDF completo)</option>`;
   data.collaborators.forEach(c=>{
     const n=cName(c);
     const o=document.createElement("option");
@@ -2614,6 +2617,81 @@ function renderReporte(){
   if(!name){
     cards.innerHTML="";weeksEl.innerHTML="";
     list.innerHTML=`<div class="rh-empty">Selecciona un colaborador para ver su reporte.</div>`;
+    return;
+  }
+
+  // Modo "TODOS": muestra resumen agregado y lista completa por colaborador
+  if(name==="__ALL__"){
+    const data=load();
+    const collabs=data.collaborators.map(c=>({name:cName(c),gmin:typeof c==="string"?"":(c.gmin||""),equipo:typeof c==="string"?"":(c.equipo||""),isLET:typeof c==="string"?false:!!c.isLET}));
+    let totalInc=0, totalFmtPend=0;
+    const perCollab=collabs.map(co=>{
+      const r=[];
+      Object.entries(data.incidents).forEach(([dateKey,dayData])=>{
+        if(!dateKey.startsWith(String(year)))return;
+        if(!dayData[co.name])return;
+        if(fromVal&&dateKey<fromVal)return;
+        if(toVal&&dateKey>toVal)return;
+        const incId=dayData[co.name];
+        const delivered=!!(data.formats&&data.formats[dateKey]&&data.formats[dateKey][co.name]);
+        r.push({dateKey,incId,delivered});
+      });
+      r.sort((a,b)=>a.dateKey.localeCompare(b.dateKey));
+      totalInc+=r.length;
+      totalFmtPend+=r.filter(x=>FORMAT_REQUIRED.has(x.incId)&&!x.delivered).length;
+      return {co,rows:r};
+    });
+    const rangeLabel=fromVal||toVal?` (${fromVal||"inicio"} a ${toVal||"fin"})`:"";
+    cards.innerHTML=
+      `<div class="rep-card"><div class="rc-count" style="color:#1e40af">${collabs.length}</div><div class="rc-label">Colaboradores</div></div>`+
+      `<div class="rep-card"><div class="rc-count" style="color:#0f172a">${totalInc}</div><div class="rc-label">Incidencias totales${rangeLabel}</div></div>`+
+      (totalFmtPend>0?`<div class="rep-card" style="border-color:#f59e0b"><div class="rc-count" style="color:#f59e0b">${totalFmtPend}</div><div class="rc-label">⚠ Formatos pendientes RH</div></div>`:"");
+    weeksEl.innerHTML="";
+    let html=`<div style="padding:8px 14px;background:#fef3c7;border-bottom:1px solid #fbbf24;font-size:.8rem;color:#78350f;">📄 Vista de TODOS los colaboradores (${collabs.length}) — ideal para descargar PDF y capturar manual</div>`;
+    perCollab.forEach(({co,rows})=>{
+      const totals=Object.fromEntries(INCIDENTS.map(i=>[i.id,0]));
+      rows.forEach(r=>{if(totals[r.incId]!==undefined)totals[r.incId]++;});
+      const fmtPend=rows.filter(r=>FORMAT_REQUIRED.has(r.incId)&&!r.delivered).length;
+      const gminTag=co.gmin?`<span style="display:inline-block;background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:4px;font-size:.7rem;font-weight:700;margin-right:6px;font-family:monospace;">GMIN ${esc(co.gmin)}</span>`:"";
+      const eqTag=co.equipo?`<span style="display:inline-block;background:#0284c7;color:white;padding:1px 7px;border-radius:4px;font-size:.7rem;font-weight:700;margin-right:6px;">EQ${esc(co.equipo)}</span>`:"";
+      const letTag=co.isLET?`<span style="display:inline-block;background:#7c3aed;color:white;padding:1px 7px;border-radius:4px;font-size:.7rem;font-weight:700;margin-right:6px;">LET</span>`:"";
+      html+=`<div class="rep-collab-block" style="page-break-inside:avoid;border:1px solid #e2e8f0;border-radius:8px;margin:10px;padding:10px 14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1.5px solid #f1f5f9;padding-bottom:6px;">
+          ${gminTag}${eqTag}${letTag}<b style="font-size:.95rem;color:#0f172a;">${esc(co.name)}</b>
+          <span style="margin-left:auto;font-size:.78rem;color:#64748b;">Total: <b>${rows.length}</b>${fmtPend?` · <span style="color:#f59e0b">⚠ ${fmtPend} formatos pend.</span>`:""}</span>
+        </div>`;
+      if(!rows.length){
+        html+=`<div style="font-size:.78rem;color:#94a3b8;font-style:italic;">Sin incidencias en el período.</div>`;
+      }else{
+        const totalsBadges=Object.entries(totals).filter(([,c])=>c>0).map(([id,c])=>{
+          const inc=INC_MAP[id];
+          return `<span style="background:${inc?inc.color:"#64748b"};color:white;padding:1px 6px;border-radius:4px;font-size:.7rem;font-weight:700;">${id}:${c}</span>`;
+        }).join(" ");
+        html+=`<div style="margin-bottom:6px;">${totalsBadges}</div>`;
+        let lastMonth="";
+        rows.forEach(({dateKey,incId,delivered})=>{
+          const [y,m,d]=dateKey.split("-");
+          const monthKey=`${y}-${m}`;
+          if(monthKey!==lastMonth){
+            html+=`<div style="font-size:.7rem;font-weight:700;color:#475569;margin:6px 0 2px;">${MONTHS[parseInt(m)-1]} ${y}</div>`;
+            lastMonth=monthKey;
+          }
+          const inc=INC_MAP[incId];
+          const clr=inc?inc.color:"#64748b";
+          const dow=localDate(dateKey).getDay();
+          const needsFmt=FORMAT_REQUIRED.has(incId);
+          const fmtBadge=needsFmt?(delivered?`<span style="color:#16a34a;font-size:.72rem;">✓ Fmt</span>`:`<span style="color:#f59e0b;font-size:.72rem;">⚠ Pend</span>`):"";
+          html+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 6px;border-bottom:1px dashed #f1f5f9;font-size:.78rem;">
+            <span style="background:${clr};color:white;padding:1px 6px;border-radius:3px;font-weight:700;font-size:.72rem;min-width:34px;text-align:center;">${incId}</span>
+            <span style="font-weight:600;min-width:130px;">${parseInt(d)} ${MONTHS[parseInt(m)-1]} · ${WDAYS[dow]}</span>
+            <span style="flex:1;color:#64748b;">${inc?inc.name:""}</span>
+            ${fmtBadge}
+          </div>`;
+        });
+      }
+      html+=`</div>`;
+    });
+    list.innerHTML=html;
     return;
   }
 
@@ -2735,7 +2813,7 @@ document.getElementById("btn-rep-clear-range").addEventListener("click",()=>{
 // PDF print del reporte
 document.getElementById("btn-print-rep").addEventListener("click",()=>{
   const name=document.getElementById("rep-filter-collab").value;
-  if(!name){alert("Selecciona un colaborador primero");return;}
+  if(!name){alert("Selecciona un colaborador primero (o 'TODOS' para PDF completo)");return;}
   const year=document.getElementById("rep-filter-year").value;
   const fromVal=document.getElementById("rep-date-from").value;
   const toVal=document.getElementById("rep-date-to").value;
@@ -2744,8 +2822,9 @@ document.getElementById("btn-print-rep").addEventListener("click",()=>{
   const list=document.getElementById("rep-list").innerHTML;
   const appCfg=getAppConfig()||{};
   const rango=fromVal||toVal?`${fromVal||"inicio"} al ${toVal||"fin"}`:`A\u00f1o ${year}`;
+  const titulo=name==="__ALL__"?`Reporte completo - TODOS los colaboradores`:`Reporte: ${esc(name)}`;
   const w=window.open("","_blank");
-  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte ${name}</title>
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${titulo}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',sans-serif;padding:24px;color:#1e293b;font-size:.85rem}
     h1{font-size:1.2rem;font-weight:800;margin-bottom:4px}.sub{color:#64748b;font-size:.8rem;margin-bottom:16px}
@@ -2757,9 +2836,10 @@ document.getElementById("btn-print-rep").addEventListener("click",()=>{
     .rep-date{font-weight:600;white-space:nowrap;min-width:160px}
     .rep-fmt.pend{color:#f59e0b;font-size:.75rem}.rep-fmt.ok{color:#16a34a;font-size:.75rem}
     .card{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
+    .rep-collab-block{page-break-inside:avoid}
     @media print{body{padding:12px}}
   </style></head><body>
-  <h1>Reporte: ${esc(name)}</h1>
+  <h1>${titulo}</h1>
   <div class="sub">${appCfg.lineName||"V4"} &mdash; ${appCfg.supervisor||""} &mdash; ${rango}</div>
   <div style="margin-bottom:14px">${cards}</div>
   ${weeks}
@@ -2774,22 +2854,30 @@ document.getElementById("btn-export-rep").addEventListener("click",()=>{
   const year=parseInt(document.getElementById("rep-filter-year").value)||today.getFullYear();
   if(!name){alert("Selecciona un colaborador primero");return;}
   const data=load();
-  const rows=[["Fecha","Dia","Incidencia","Descripcion","Formato RH"]];
-  Object.entries(data.incidents).forEach(([dateKey,dayData])=>{
-    if(!dateKey.startsWith(String(year))||!dayData[name])return;
-    const incId=dayData[name];
-    const inc=INC_MAP[incId];
-    const [,m,d]=dateKey.split("-");
-    const dow=localDate(dateKey).getDay();
-    const delivered=!!(data.formats&&data.formats[dateKey]&&data.formats[dateKey][name]);
-    const fmt=FORMAT_REQUIRED.has(incId)?(delivered?"Entregado":"Pendiente"):"N/A";
-    rows.push([`${parseInt(d)} de ${MONTHS[parseInt(m)-1]} ${year}`,WDAYS[dow],incId,inc?inc.name:"",fmt]);
+  const isAll=name==="__ALL__";
+  const rows=[isAll?["GMIN","Colaborador","Equipo","Fecha","Dia","Incidencia","Descripcion","Formato RH"]:["Fecha","Dia","Incidencia","Descripcion","Formato RH"]];
+  const targetCollabs=isAll?data.collaborators.map(c=>({name:cName(c),gmin:typeof c==="string"?"":(c.gmin||""),equipo:typeof c==="string"?"":(c.equipo||"")})):[{name,gmin:"",equipo:""}];
+  targetCollabs.forEach(co=>{
+    Object.entries(data.incidents).forEach(([dateKey,dayData])=>{
+      if(!dateKey.startsWith(String(year))||!dayData[co.name])return;
+      const incId=dayData[co.name];
+      const inc=INC_MAP[incId];
+      const [,m,d]=dateKey.split("-");
+      const dow=localDate(dateKey).getDay();
+      const delivered=!!(data.formats&&data.formats[dateKey]&&data.formats[dateKey][co.name]);
+      const fmt=FORMAT_REQUIRED.has(incId)?(delivered?"Entregado":"Pendiente"):"N/A";
+      const fechaStr=`${parseInt(d)} de ${MONTHS[parseInt(m)-1]} ${year}`;
+      if(isAll){
+        rows.push([co.gmin,co.name,co.equipo,fechaStr,WDAYS[dow],incId,inc?inc.name:"",fmt]);
+      }else{
+        rows.push([fechaStr,WDAYS[dow],incId,inc?inc.name:"",fmt]);
+      }
+    });
   });
-  rows.sort((a,b)=>a[0]<b[0]?-1:1);
-  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(",")).join("\n");
+  const csv=rows.map(r=>r.map(v=>`"${String(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));
-  a.download=`V4_Reporte_${name.replace(/ /g,"_")}_${year}.csv`;a.click();
+  a.download=isAll?`V4_Reporte_TODOS_${year}.csv`:`V4_Reporte_${name.replace(/ /g,"_")}_${year}.csv`;a.click();
 });
 
 /* ═══════════════════════════════════════════
