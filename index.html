@@ -6501,6 +6501,67 @@ setTimeout(()=>{
    📚 MANUAL DE USO INTEGRADO
 ══════════════════════════════════════════════════════════════════ */
 const MANUAL_SECTIONS=[
+  {id:"novedades",icon:"✨",title:"Novedades V4",content:`
+    <h3>🆕 Últimas actualizaciones</h3>
+    <p>Estas son las funciones agregadas recientemente. ¡Apróvechalas!</p>
+
+    <h4>🆔 GMIN en colaboradores</h4>
+    <ul>
+      <li>Cada colaborador ahora puede tener su <b>GMIN</b> (ID numérico de GM).</li>
+      <li>Aparece como badge azul claro junto al nombre en <b>Colaboradores</b> y <b>Calendario</b>.</li>
+      <li>Se captura manual al editar (✏️) o se importa automáticamente desde el <b>MX Details</b> de Kronos.</li>
+    </ul>
+
+    <h4>📥 Importar MX Details (Kronos)</h4>
+    <ol>
+      <li>Pestaña <b>👥 Colaboradores</b> → <b>📥 Importar Excel</b></li>
+      <li>Selecciona el archivo <code>MX Details.xlsx</code> tal cual lo descargas de Kronos.</li>
+      <li>Detecta columnas <b>GMIN</b> + <b>Nombre</b> automáticamente.</li>
+      <li>Si el colaborador ya existe: <b>actualiza su GMIN</b> sin perder datos (incidencias, equipo, LET).</li>
+      <li>Si no existe: lo agrega como nuevo.</li>
+    </ol>
+    <p class="tip">💡 El matcher reconoce nombres en formato "Apellido, Nombre" (Kronos) y "Nombre Apellido" (app), incluyendo iniciales.</p>
+
+    <h4>🚫 Bypass DLP para colaboradores</h4>
+    <p>Si GM bloquea la carga del archivo, usa el botón verde <b>📋 Pegar desde Excel (bypass DLP)</b>:</p>
+    <ol>
+      <li>Abre el MX Details en Excel y selecciona la tabla.</li>
+      <li>Ctrl+C para copiar.</li>
+      <li>En el modal de import, click en el botón verde y pega con Ctrl+V.</li>
+      <li>Click en <b>Procesar ✓</b>.</li>
+    </ol>
+
+    <h4>🗑 Eliminar colaborador desde el calendario</h4>
+    <p>En la columna de nombres del calendario, pasa el mouse sobre una fila → aparece un botón rojo <b>×</b> a la derecha del nombre. Click para eliminar (con confirmación).</p>
+
+    <h4>📅 Vista Mensual con colores de equipo</h4>
+    <ul>
+      <li>Cada chip de incidencia tiene un <b>borde izquierdo de color</b> según el equipo.</li>
+      <li>Badge cuadrado con el <b>número de equipo</b> (1, 2, 3…) o <b>L</b> morado para LET.</li>
+      <li>Debajo del calendario aparece la <b>leyenda</b> con todos los equipos.</li>
+      <li>10 colores disponibles (azul=EQ1, verde=EQ2, rojo=EQ3, naranja=EQ4, morado=EQ5…).</li>
+    </ul>
+
+    <h4>📄 Reporte de TODOS los colaboradores</h4>
+    <p>En la pestaña <b>📊 Reporte Colaborador</b>, ahora hay una opción <b>📋 TODOS los colaboradores (para PDF completo)</b>:</p>
+    <ul>
+      <li>Genera un PDF con un bloque por cada persona (con corte de página limpio).</li>
+      <li>Útil para <b>volver a capturar manual</b> si pierdes datos o quieres respaldo en papel.</li>
+      <li>El CSV exportado incluye columnas <b>GMIN</b>, <b>Colaborador</b> y <b>Equipo</b>.</li>
+    </ul>
+
+    <h4>☁ Sincronización en la nube</h4>
+    <ul>
+      <li>Click en el indicador de sincronización (esquina superior derecha) para abrir el modal.</li>
+      <li>Comparte tu <b>Código de Línea (V4.xxx)</b> con otros dispositivos para acceder a los mismos datos.</li>
+      <li>Configura el rango de alertas de vacaciones y faltas desde el mismo modal.</li>
+      <li>Si ya estás conectado, puedes <b>solo guardar la configuración de alertas</b> sin volver a poner credenciales.</li>
+    </ul>
+
+    <h4>📌 Tip importante después de actualizar</h4>
+    <p>Siempre haz <b>Ctrl + Shift + R</b> para forzar la recarga y ver los cambios nuevos.</p>
+  `},
+  
   {id:"inicio",icon:"🚀",title:"Primeros Pasos",content:`
     <h3>👋 Bienvenido al Control de Incidencias</h3>
     <p>Esta herramienta te ayuda a llevar el control diario de incidencias, vacaciones, formatos y aniversarios de tu equipo en GM.</p>
@@ -6539,12 +6600,20 @@ const MANUAL_SECTIONS=[
       <li>Pestaña <b>👥 Colaboradores</b></li>
       <li>Click en <b>📥 Importar Excel</b></li>
       <li>Selecciona archivo con columna "Nombre" (acepta .xlsx, .xls, .csv)</li>
+      <li><b>MX Details de Kronos</b>: detecta GMIN + Nombre automáticamente y actualiza GMIN de los existentes.</li>
+      <li><b>Bypass DLP</b>: si GM bloquea la carga, usa el botón verde <b>📋 Pegar desde Excel</b> y pega con Ctrl+V.</li>
     </ol>
+    
+    <h4>🆔 Campo GMIN</h4>
+    <ul>
+      <li>Captura el GMIN al editar (✏️) o impórtalo desde el MX Details.</li>
+      <li>Aparece como badge azul claro junto al nombre en lista y calendario.</li>
+    </ul>
     
     <h4>Editar o eliminar</h4>
     <ul>
-      <li>Click en el ✏️ <b>lápiz</b> para editar nombre/equipo</li>
-      <li>Click en 🗑 <b>papelera</b> para eliminar</li>
+      <li>Click en el ✏️ <b>lápiz</b> para editar nombre/equipo/GMIN</li>
+      <li>Click en 🗑 <b>papelera</b> para eliminar (también desde el calendario al pasar el mouse)</li>
     </ul>
   `},
   
@@ -6579,7 +6648,19 @@ const MANUAL_SECTIONS=[
       <li>🎯 = día festivo en México</li>
       <li>Fila <b>Total incidencias</b> = cuántas en cada día</li>
       <li>Fila <b>% Asistencia</b> = porcentaje del día (verde ≥95%, ámbar 85-94%, rojo &lt;85%)</li>
+      <li>Badge <b>azul claro</b> = GMIN del colaborador</li>
+      <li>Badge <b>azul</b> = Equipo · Badge <b>morado</b> = LET</li>
     </ul>
+
+    <h4>📅 Vista Mensual (panel separado)</h4>
+    <ul>
+      <li>Cada incidencia se muestra como chip con <b>color del equipo</b> (borde y badge).</li>
+      <li>Leyenda de equipos al pie del calendario.</li>
+      <li>Botones para PDF y pantalla completa.</li>
+    </ul>
+
+    <h4>🗑 Eliminar colaborador desde calendario</h4>
+    <p>Pasa el mouse sobre una fila del calendario → aparece un botón rojo <b>×</b> a la derecha del nombre.</p>
     
     <h4>Marcar formato como entregado a RH</h4>
     <ol>
@@ -6684,6 +6765,15 @@ const MANUAL_SECTIONS=[
       <li>Se descarga un PDF de 1 página con KPIs, top, ranking y tabla completa</li>
       <li>Listo para mandar a tu gerente o RH</li>
     </ol>
+
+    <h4>📋 Reporte de TODOS los colaboradores (PDF para captura manual)</h4>
+    <ol>
+      <li>Pestaña <b>📊 Reporte Colaborador</b></li>
+      <li>En el filtro de colaborador elige <b>📋 TODOS los colaboradores</b></li>
+      <li>Click en <b>Imprimir / PDF</b> → genera un PDF con un bloque por persona (corte de página automático)</li>
+      <li>También puedes descargar CSV con columnas GMIN, Colaborador y Equipo</li>
+    </ol>
+    <p class="tip">💡 Útil como respaldo en papel o para capturar manualmente después de un cambio de equipo.</p>
   `},
   
   {id:"evidencias",icon:"📎",title:"Evidencias RH",content:`
@@ -6769,6 +6859,16 @@ const MANUAL_SECTIONS=[
     
     <h4>❌ "El tema/color no cambia"</h4>
     <p><b>Solución</b>: presiona <b>Ctrl + Shift + R</b> para recargar forzado.</p>
+
+    <h4>❌ "No veo las funciones nuevas (GMIN, Vista Mensual con colores, etc.)"</h4>
+    <p><b>Causa</b>: el navegador o GitHub Pages te está sirviendo una versión vieja en caché.</p>
+    <p><b>Solución</b>: <b>Ctrl + Shift + R</b> (recarga forzada). Si persiste, abre en ventana de incógnito.</p>
+
+    <h4>❌ "Al guardar configuración de alertas pide Master Key y BIN ID"</h4>
+    <p><b>Solución</b>: si ya estás conectado a la nube, deja vacíos esos campos y solo presiona <b>Guardar y Conectar</b>; ahora guarda solo las alertas. También puedes presionar <b>Cancelar</b> y la config se guarda igual.</p>
+
+    <h4>❌ "Importo MX Details y todos salen como nuevos en lugar de actualizar GMIN"</h4>
+    <p><b>Solución</b>: revisa que la casilla <b>Actualizar GMIN de existentes</b> esté marcada en el modal de import. Si ya tienes los nombres con formato distinto, el matcher los reconoce por: GMIN → nombre normalizado → palabras ordenadas → iniciales.</p>
   `},
   
   {id:"tips",icon:"💡",title:"Tips y Mejores Prácticas",content:`
@@ -6962,7 +7062,7 @@ setTimeout(()=>{
 </script>
 
 <footer class="app-footer">
-  Desarrollado por <b>Josu&eacute; Emmanuel L&oacute;pez Ju&aacute;rez</b> &nbsp;&bull;&nbsp; General Motors &mdash; L&iacute;nea Vestiduras 4 &nbsp;&bull;&nbsp; V4 Control de Incidencias
+  Desarrollado por <b>Josu&eacute; Emmanuel L&oacute;pez Ju&aacute;rez</b> &nbsp;&bull;&nbsp; General Motors
 </footer>
 
 </body>
