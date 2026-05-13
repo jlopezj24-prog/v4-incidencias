@@ -112,6 +112,10 @@
     .eq-section-header { padding:7px 16px 5px; font-size:.75rem; font-weight:700; color:#6d28d9; text-transform:uppercase; letter-spacing:.06em; background:#ede9fe; border-top:2px solid #c4b5fd; border-bottom:1px solid #ddd6fe; }
     .let-cal-badge { display:inline-block;background:#7c3aed;color:white;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle; }
     .eq-cal-badge { display:inline-block;background:#0284c7;color:white;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle; }
+    .gmin-cal-badge { display:inline-block;background:#dbeafe;color:#1e40af;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle;font-family:monospace; }
+    .cal-del-btn { opacity:0; margin-left:6px; background:#fee2e2; color:#b91c1c; border:none; border-radius:4px; padding:1px 5px; font-size:.7rem; font-weight:700; cursor:pointer; transition:opacity .15s; }
+    tr:hover .cal-del-btn { opacity:1; }
+    .cal-del-btn:hover { background:#dc2626; color:white; }
     .cal-eq-sep td { background:#f1f5f9!important;font-size:.72rem;font-weight:700;color:#475569;padding:4px 8px;border-top:2px solid #cbd5e1; }
     .empty-msg { padding:36px; text-align:center; color:#94a3b8; font-size:.9rem; }
     /* MODAL */
@@ -1090,6 +1094,10 @@
     <h3 id="modal-add-title">Agregar Colaborador</h3>
     <input type="hidden" id="edit-collab-idx" value="-1" />
     <input type="text" id="input-collab" placeholder="Nombre completo" autocomplete="off" />
+    <div style="margin-top:10px">
+      <label style="font-size:.8rem;color:#64748b;display:block;margin-bottom:4px">GMIN (opcional)</label>
+      <input type="text" id="input-gmin" placeholder="Número GMIN del colaborador" autocomplete="off" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.9rem;font-family:monospace" />
+    </div>
     <div style="display:flex;gap:10px;margin-top:10px;align-items:flex-end">
       <div style="flex:1">
         <label style="font-size:.8rem;color:#64748b;display:block;margin-bottom:4px">N&deg; de Equipo</label>
@@ -1112,10 +1120,15 @@
   <div class="modal-box wide">
     <h3>&#128194; Importar colaboradores desde Excel</h3>
 
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <button type="button" id="btn-paste-collabs" style="padding:8px 14px;border-radius:8px;background:#10b981;color:white;border:none;font-size:.85rem;font-weight:700;cursor:pointer;">&#128203; Pegar desde Excel (bypass DLP)</button>
+      <span style="font-size:.78rem;color:#64748b;align-self:center;">← Recomendado si DLP bloquea archivos</span>
+    </div>
+
     <div class="import-drop" id="import-drop-zone">
       <div class="import-drop-icon">&#128196;</div>
       <p><b>Arrastra tu archivo aquí</b> o haz clic para seleccionar</p>
-      <small>Formatos aceptados: .xlsx, .xls, .csv &nbsp;|&nbsp; Se leerá la primera columna</small>
+      <small>Formatos aceptados: .xlsx, .xls, .csv &nbsp;|&nbsp; Detecta automáticamente MX Details (GMIN+Nombre)</small>
     </div>
 
     <div id="import-preview-section" style="display:none">
@@ -1546,10 +1559,12 @@ function renderCalendar(){
         body+=`<tr class="cal-eq-sep"><td colspan="${total+1}">Sin equipo asignado</td></tr>`;
       }
       lastEq=equipo;
+      const gmin=typeof c==="string"?"":(c.gmin||"");
       const eqBadge=equipo?`<span class="eq-cal-badge">EQ${esc(equipo)}</span>`:"";
       const letBadge=isLETflag?`<span class="let-cal-badge">LET</span>`:"";
+      const gminBadge=gmin?`<span class="gmin-cal-badge" title="GMIN ${esc(gmin)}">${esc(gmin)}</span>`:"";
       const rowBg=isLETflag?"background:#f5f3ff":(si%2?"background:#f8fafc":"background:#fff");
-      body+=`<tr><td style="${rowBg}">${eqBadge}${letBadge}<span class="collab-name" title="${esc(name)}">${esc(name)}</span></td>`;
+      body+=`<tr><td style="${rowBg}">${gminBadge}${eqBadge}${letBadge}<span class="collab-name" title="${esc(name)}">${esc(name)}</span><button class="cal-del-btn" data-del-ci="${origIdx}" title="Eliminar colaborador">\u2715</button></td>`;
       const collabBdayDays=bdayMap.get(normalizeName(name))||null;
       const collabAnnivDays=annivMap.get(normalizeName(name))||null;
       for(let d=1;d<=total;d++){
@@ -1608,6 +1623,15 @@ function renderCalendar(){
   }
   body+="</tbody>";
   document.getElementById("cal-table").innerHTML=head+body;
+
+  // Botón eliminar colaborador desde calendario
+  document.querySelectorAll("#cal-table .cal-del-btn").forEach(btn=>{
+    btn.addEventListener("click",e=>{
+      e.stopPropagation();
+      const idx=parseInt(btn.dataset.delCi);
+      if(!isNaN(idx))deleteCollab(idx);
+    });
+  });
 }
 
 document.getElementById("btn-prev").addEventListener("click",()=>{curMonth--;if(curMonth<0){curMonth=11;curYear--;}renderCalendar();applyCalSearch();});
@@ -1802,12 +1826,13 @@ function renderCollabs(){
     return(!isNaN(na)&&!isNaN(nb))?(na-nb):a.localeCompare(b);
   });
 
-  function rowHtml(origIdx,name,isLETflag,rowNum,displayIdx){
+  function rowHtml(origIdx,name,isLETflag,rowNum,displayIdx,gmin){
     const letBadge=isLETflag?`<span style="background:#7c3aed;color:white;font-size:.7rem;padding:2px 6px;border-radius:4px;font-weight:700;margin-right:6px">LET</span>`:"";
+    const gminBadge=gmin?`<span style="background:#dbeafe;color:#1e40af;font-size:.7rem;padding:2px 6px;border-radius:4px;font-weight:700;margin-right:6px;font-family:monospace;" title="GMIN ${esc(gmin)}">${esc(gmin)}</span>`:"";
     return `<div class="coll-item${isLETflag?" coll-let-row":""}" draggable="true" data-orig-idx="${origIdx}" data-display-idx="${displayIdx}">
       <span class="drag-handle">\u2630</span>
       <span class="coll-num">${rowNum}</span>
-      ${letBadge}<span class="coll-name-txt">${esc(name)}</span>
+      ${letBadge}${gminBadge}<span class="coll-name-txt">${esc(name)}</span>
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn-edit-collab" data-idx="${origIdx}">\u270e Editar</button>
         <button class="btn-del" data-idx="${origIdx}">\u2715 Eliminar</button>
@@ -1823,13 +1848,15 @@ function renderCollabs(){
     groups[eq].forEach(({c,origIdx})=>{
       const name=cName(c);
       const isLETflag=typeof c==="string"?false:!!c.isLET;
-      html+=rowHtml(origIdx,name,isLETflag,globalNum++,displayIdx++);
+      const gmin=typeof c==="string"?"":(c.gmin||"");
+      html+=rowHtml(origIdx,name,isLETflag,globalNum++,displayIdx++,gmin);
     });
   });
   if(sinEquipo.length){
     if(eqKeys.length)html+=`<div class="eq-section-header" style="color:#64748b">Sin equipo asignado</div>`;
     sinEquipo.forEach(({c,origIdx})=>{
-      html+=rowHtml(origIdx,cName(c),typeof c==="string"?false:!!c.isLET,globalNum++,displayIdx++);
+      const gmin=typeof c==="string"?"":(c.gmin||"");
+      html+=rowHtml(origIdx,cName(c),typeof c==="string"?false:!!c.isLET,globalNum++,displayIdx++,gmin);
     });
   }
 
@@ -1847,6 +1874,7 @@ document.getElementById("btn-add-collab").addEventListener("click",()=>{
   document.getElementById("input-collab").value="";
   document.getElementById("input-equipo").value="";
   document.getElementById("input-islet").checked=false;
+  { const g=document.getElementById("input-gmin"); if(g) g.value=""; }
   document.getElementById("modal-add").classList.add("open");
   setTimeout(()=>document.getElementById("input-collab").focus(),80);
 });
@@ -1858,6 +1886,7 @@ function openEditCollab(idx){
   document.getElementById("input-collab").value=cName(c);
   document.getElementById("input-equipo").value=(typeof c==="string"?"":c.equipo||"");
   document.getElementById("input-islet").checked=(typeof c==="string"?false:!!c.isLET);
+  { const g=document.getElementById("input-gmin"); if(g) g.value=(typeof c==="string"?"":(c.gmin||"")); }
   document.getElementById("modal-add").classList.add("open");
   setTimeout(()=>document.getElementById("input-collab").focus(),80);
 }
@@ -1970,6 +1999,8 @@ function saveCollab(){
   if(!name)return;
   const equipo=document.getElementById("input-equipo").value.trim();
   const isLET=document.getElementById("input-islet").checked;
+  const gminEl=document.getElementById("input-gmin");
+  const gmin=gminEl?gminEl.value.trim():"";
   const editIdx=parseInt(document.getElementById("edit-collab-idx").value);
   const data=load();
   if(editIdx>=0){
@@ -1981,11 +2012,11 @@ function saveCollab(){
       Object.values(data.incidents).forEach(day=>{if(day[oldName]!==undefined){day[name]=day[oldName];delete day[oldName];}});
       if(data.formats)Object.values(data.formats).forEach(day=>{if(day[oldName]!==undefined){day[name]=day[oldName];delete day[oldName];}});
     }
-    data.collaborators[editIdx]={name,equipo,isLET};
+    data.collaborators[editIdx]={name,equipo,isLET,gmin};
   }else{
     // Modo agregar
     if(data.collaborators.some(c=>cName(c)===name)){alert("Ya existe un colaborador con ese nombre.");return;}
-    data.collaborators.push({name,equipo,isLET});
+    data.collaborators.push({name,equipo,isLET,gmin});
   }
   save(data);closeModal();renderCollabs();renderCalendar();
 }
@@ -3256,59 +3287,7 @@ function processExcelFile(file){
       const wb=XLSX.read(data,{type:"array"});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-
-      // Detectar formato numérico: encabezados en primera fila
-      let nameColIdx=0;
-      let isNumerico=false;
-      if(rows.length>0){
-        const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-        // Numérico tiene: nombre/met/empleado, linea, mayordomia, costo, lider, fecha
-        const nameIdx=hdr.findIndex(h=>/\bmet\b|nombre|empleado/i.test(h));
-        const hasExtra=hdr.some(h=>/l[ií]nea|linea|mayor|costo|fecha/i.test(h));
-        if(nameIdx>=0&&hasExtra){isNumerico=true;nameColIdx=nameIdx;}
-      }
-
-      // Construir lista de nombres
-      let names=[];
-      rows.forEach((row,ri)=>{
-        if(ri===0){
-          // Saltar encabezado si contiene palabras clave
-          const cell=String(row[nameColIdx]||"").trim();
-          if(/nombre|colaborador|name|empleado|\bmet\b|#/i.test(cell))return;
-        }
-        const cell=String(row[nameColIdx]||"").trim();
-        if(!cell)return;
-        names.push(cell);
-      });
-
-      if(!names.length){
-        alert("No se encontraron nombres en el archivo."+(isNumerico?" (Detectado: formato Num\u00e9rico)":""));
-        return;
-      }
-
-      const existing=load().collaborators;
-      const existingNames=existing.map(c=>cName(c));
-      const newNames=names.filter(n=>!existingNames.includes(n));
-      const dupNames=names.filter(n=>existingNames.includes(n));
-      pendingImportNames=newNames;
-
-      /* summary */
-      document.getElementById("import-summary").innerHTML=
-        (isNumerico?`<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:.8rem;color:#1d4ed8">&#128196; Detectado: <b>Archivo Num\u00e9rico</b> &mdash; columna de nombre encontrada en posici\u00f3n ${nameColIdx+1}</div>`:"")+
-        `Se encontraron <b>${names.length}</b> nombre(s) en el archivo:<br>`+
-        `<b style="color:#166534">${newNames.length} nuevos</b> para agregar`+
-        (dupNames.length?` &nbsp;&middot;&nbsp; <span>${dupNames.length} ya existentes (se omitir\u00e1n)</span>`:"");
-
-      /* preview list */
-      document.getElementById("import-preview-list").innerHTML=
-        [...newNames.map(n=>`<div class="import-row"><span class="import-badge badge-new">NUEVO</span>${esc(n)}</div>`),
-         ...dupNames.map(n=>`<div class="import-row"><span class="import-badge badge-dup">YA EXISTE</span>${esc(n)}</div>`)
-        ].join("");
-
-      document.getElementById("import-drop-zone").style.display="none";
-      document.getElementById("import-preview-section").style.display="block";
-      document.getElementById("btn-import-confirm").style.display=newNames.length?"inline-block":"none";
-
+      processCollabRows(rows);
     }catch(err){
       alert("Error al leer el archivo. Aseg\u00farate de que sea un Excel v\u00e1lido (.xlsx, .xls) o CSV.\n\n"+err.message);
     }
@@ -3316,18 +3295,188 @@ function processExcelFile(file){
   reader.readAsArrayBuffer(file);
 }
 
+/* Procesa filas (de XLSX o de pegado) detectando GMIN+Nombre, Numérico, o nombre simple */
+function processCollabRows(rows){
+  if(!rows||!rows.length){alert("No se encontraron datos.");return;}
+
+  // Detectar formato examinando primeras 3 filas
+  let nameColIdx=0;
+  let gminColIdx=-1;
+  let startRow=1;
+  let isNumerico=false;
+  let isMxDetails=false;
+  let detectedFormat='Genérico';
+  let headerFound=false;
+
+  for(let r=0;r<Math.min(3,rows.length);r++){
+    const hdr=(rows[r]||[]).map(h=>String(h).toLowerCase().trim());
+    const gmIdx=hdr.findIndex(h=>/^gmin$|gm.?in|employee.?id|id.?empleado/i.test(h));
+    const nmIdx=hdr.findIndex(h=>/\bmet\b|nombre|name|empleado|colaborador|worker/i.test(h));
+    const hasExtra=hdr.some(h=>/l[ií]nea|mayor|costo|fecha|department|departamento|hire/i.test(h));
+
+    if(gmIdx>=0&&nmIdx>=0){
+      isMxDetails=true;gminColIdx=gmIdx;nameColIdx=nmIdx;startRow=r+1;
+      detectedFormat='MX Details (Kronos)';headerFound=true;break;
+    }
+    if(nmIdx>=0&&hasExtra){
+      isNumerico=true;nameColIdx=nmIdx;startRow=r+1;
+      detectedFormat='Numérico';headerFound=true;break;
+    }
+    if(nmIdx>=0){nameColIdx=nmIdx;startRow=r+1;headerFound=true;}
+  }
+  if(!headerFound){startRow=0;} // sin encabezado: tomar todas las filas col 0
+
+  // Construir items {name, gmin}
+  const items=[];
+  for(let ri=startRow;ri<rows.length;ri++){
+    const row=rows[ri];if(!row)continue;
+    const nameRaw=String(row[nameColIdx]||"").trim();
+    if(!nameRaw)continue;
+    // "Apellido, Nombre" → "Nombre Apellido"
+    let name=nameRaw;
+    if(nameRaw.includes(',')){
+      const parts=nameRaw.split(',').map(s=>s.trim());
+      if(parts.length===2&&parts[0]&&parts[1])name=parts[1]+' '+parts[0];
+    }
+    const gmin=gminColIdx>=0?String(row[gminColIdx]||"").trim():"";
+    items.push({name,gmin});
+  }
+
+  if(!items.length){
+    alert("No se encontraron colaboradores.\n\nFormato detectado: "+detectedFormat+"\n\nVerifica que haya una columna con nombres.");
+    return;
+  }
+
+  const existing=load().collaborators;
+  const existingNames=existing.map(c=>cName(c));
+  const newItems=items.filter(it=>!existingNames.includes(it.name));
+  const dupItems=items.filter(it=>existingNames.includes(it.name));
+  pendingImportNames=newItems;
+
+  const formatBadge=isMxDetails?
+    `<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:.8rem;color:#065f46">&#128196; Detectado: <b>${detectedFormat}</b> &mdash; GMIN col. ${gminColIdx+1}, Nombre col. ${nameColIdx+1}, datos desde fila ${startRow+1}</div>`:
+    isNumerico?`<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:.8rem;color:#1d4ed8">&#128196; Detectado: <b>${detectedFormat}</b> &mdash; columna de nombre en posición ${nameColIdx+1}</div>`:
+    "";
+
+  document.getElementById("import-summary").innerHTML=
+    formatBadge+
+    `Se encontraron <b>${items.length}</b> colaborador(es):<br>`+
+    `<b style="color:#166534">${newItems.length} nuevos</b> para agregar`+
+    (dupItems.length?` &nbsp;&middot;&nbsp; <span>${dupItems.length} ya existentes (se omitirán)</span>`:"");
+
+  const renderPreview=(it,badge)=>{
+    const gminTag=it.gmin?`<span style="display:inline-block;background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:4px;font-size:.7rem;font-weight:700;margin-right:6px;font-family:monospace;">GMIN ${esc(it.gmin)}</span>`:"";
+    return `<div class="import-row">${badge}${gminTag}${esc(it.name)}</div>`;
+  };
+  document.getElementById("import-preview-list").innerHTML=
+    [...newItems.map(it=>renderPreview(it,'<span class="import-badge badge-new">NUEVO</span>')),
+     ...dupItems.map(it=>renderPreview(it,'<span class="import-badge badge-dup">YA EXISTE</span>'))
+    ].join("");
+
+  document.getElementById("import-drop-zone").style.display="none";
+  document.getElementById("import-preview-section").style.display="block";
+  document.getElementById("btn-import-confirm").style.display=newItems.length?"inline-block":"none";
+}
+
+/* Modal para pegar colaboradores desde Excel (bypass DLP) */
+function openPasteCollabsModal(){
+  let modal=document.getElementById('modal-paste-collabs');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='modal-paste-collabs';
+    modal.className='modal-overlay';
+    modal.innerHTML=`
+      <div class="modal-box" style="max-width:760px;max-height:92vh;overflow-y:auto;">
+        <h3 style="margin-top:0;">&#128203; Pegar colaboradores desde Excel</h3>
+        <div style="background:#ecfdf5;border-left:4px solid #10b981;padding:12px 14px;border-radius:8px;font-size:.86rem;color:#064e3b;margin-bottom:14px;line-height:1.5;">
+          <b>Pasos para MX Details (Kronos):</b><br>
+          1. Abre el archivo <b>MX Details</b> en Excel<br>
+          2. Selecciona desde el encabezado (fila con <b>GMIN</b> y <b>Nombre</b>) hasta la última fila de datos<br>
+          3. Copia con <b>Ctrl+C</b><br>
+          4. Click en el cuadro de abajo y pega con <b>Ctrl+V</b> (o usa el botón automático)<br>
+          5. Click en <b>Procesar</b>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+          <button id="paste-collabs-from-clipboard" type="button" style="padding:7px 12px;border-radius:6px;background:#6366f1;color:white;border:none;font-size:.82rem;font-weight:700;cursor:pointer;">&#128229; Pegar automáticamente desde portapapeles</button>
+          <span style="font-size:.78rem;color:#64748b;align-self:center;">o pega manual con Ctrl+V en el cuadro:</span>
+        </div>
+        <textarea id="paste-collabs-area" placeholder="Pega aquí el contenido de Excel (incluye los encabezados GMIN y Nombre)..." style="width:100%;height:220px;padding:10px;border:2px dashed #cbd5e1;border-radius:8px;font-family:monospace;font-size:.78rem;resize:vertical;"></textarea>
+        <div id="paste-collabs-preview" style="margin-top:10px;font-size:.78rem;color:#64748b;"></div>
+        <div class="modal-actions" style="margin-top:14px;">
+          <button class="btn-cancel" id="paste-collabs-cancel" type="button">Cancelar</button>
+          <button class="btn-primary" id="paste-collabs-confirm" type="button" style="background:#10b981;">Procesar &#10003;</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    modal.querySelector('#paste-collabs-cancel').addEventListener('click',()=>{
+      modal.classList.remove('open');
+    });
+    modal.querySelector('#paste-collabs-confirm').addEventListener('click',()=>{
+      const txt=modal.querySelector('#paste-collabs-area').value;
+      if(!txt||!txt.trim()){showToast('Pega primero el contenido del Excel',3000);return;}
+      try{
+        const rows=parsePastedTable(txt);
+        if(!rows.length){showToast('No se detectaron filas válidas.',4000);return;}
+        modal.classList.remove('open');
+        processCollabRows(rows);
+      }catch(err){
+        console.error(err);
+        showToast('Error al procesar: '+err.message,4000);
+      }
+    });
+    modal.querySelector('#paste-collabs-from-clipboard').addEventListener('click',async()=>{
+      try{
+        const txt=await navigator.clipboard.readText();
+        if(!txt||!txt.trim()){showToast('El portapapeles está vacío.',3500);return;}
+        modal.querySelector('#paste-collabs-area').value=txt;
+        updatePasteCollabsPreview(txt);
+        showToast('Pegado. Click en "Procesar" para continuar.',2500);
+      }catch(err){
+        showToast('No se pudo leer el portapapeles. Pega manual con Ctrl+V.',3500);
+      }
+    });
+    modal.querySelector('#paste-collabs-area').addEventListener('input',e=>{
+      updatePasteCollabsPreview(e.target.value);
+    });
+  }
+  modal.querySelector('#paste-collabs-area').value='';
+  modal.querySelector('#paste-collabs-preview').textContent='';
+  modal.classList.add('open');
+  setTimeout(()=>modal.querySelector('#paste-collabs-area').focus(),100);
+}
+
+function updatePasteCollabsPreview(txt){
+  const prev=document.getElementById('paste-collabs-preview');
+  if(!prev)return;
+  if(!txt||!txt.trim()){prev.textContent='';return;}
+  const lines=txt.split(/\r?\n/).filter(l=>l.trim().length>0);
+  const sep=detectSeparator(lines[0]||'');
+  const cols=lines[0]?lines[0].split(sep).length:0;
+  prev.textContent=`📊 Detectado: ${lines.length} línea(s), ${cols} columna(s), separador: "${sep==='\t'?'TAB':sep}"`;
+  prev.style.color='#059669';
+}
+
+document.getElementById('btn-paste-collabs').addEventListener('click',openPasteCollabsModal);
+
 document.getElementById("btn-import-confirm").addEventListener("click",()=>{
   if(!pendingImportNames.length)return;
   const data=load();
-  pendingImportNames.forEach(name=>{
-    if(!data.collaborators.some(c=>cName(c)===name))
-      data.collaborators.push({name,equipo:"",isLET:false});
+  let added=0;
+  pendingImportNames.forEach(item=>{
+    // item puede ser string (legacy) u objeto {name, gmin}
+    const name=typeof item==="string"?item:item.name;
+    const gmin=typeof item==="string"?"":(item.gmin||"");
+    if(!data.collaborators.some(c=>cName(c)===name)){
+      data.collaborators.push({name,gmin,equipo:"",isLET:false});
+      added++;
+    }
   });
   save(data);
   closeImportModal();
   renderCollabs();
   renderCalendar();
-  showToast(`Se importaron ${pendingImportNames.length} colaborador(es). Asigna su equipo y LET en la pesta\u00f1a Colaboradores.`);
+  showToast(`Se importaron ${added} colaborador(es). Asigna su equipo y LET en la pesta\u00f1a Colaboradores.`);
   pendingImportNames=[];
 });
 
