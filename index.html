@@ -1222,6 +1222,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" id="btn-cloud-cancel">Cancelar</button>
+      <button class="btn-cancel" id="btn-cloud-force-upload" style="color:#0284c7;border-color:#0284c7;" title="Sube TODOS los datos locales (cumpleaños, aniversarios, evidencias, etc.) a la nube ahora">&#9650; Subir ahora</button>
       <button class="btn-cancel" id="btn-cloud-clear" style="color:#ef4444;border-color:#ef4444;">Desactivar nube</button>
       <button class="btn-primary" id="btn-cloud-save">Guardar y Conectar</button>
     </div>
@@ -6161,6 +6162,16 @@ async function syncToCloud(data){
   if(!apiKey||!binId)return;
   setSyncUI("syncing","Guardando...");
   try{
+    // Garantizar que SIEMPRE se incluyan las claves auxiliares (cumpleaños, aniversarios,
+    // zapatos, evidencias, alertas, app-config) en cada sincronización a la nube,
+    // incluso si el caller no actualizó _extras antes de llamar.
+    try{
+      data._extras=data._extras||{};
+      ["v4-cumpleanios","v4-aniversarios","v4-zapatos","v4-vacation-alerts","v4-alert-config","v4-evidencias-rh","v4-app-config","v4-turno"].forEach(k=>{
+        const v=localStorage.getItem(k);
+        if(v!==null)data._extras[k]=v;
+      });
+    }catch(e){console.warn("syncToCloud _extras",e);}
     const resp=await fetch(`${JSONBIN}/${binId}`,{
       method:"PUT",
       headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Versioning":"false"},
@@ -6270,6 +6281,21 @@ function closeCloudModal(){
 
 document.getElementById("btn-sync-status").addEventListener("click",openCloudModal);
 document.getElementById("btn-cloud-cancel").addEventListener("click",closeCloudModal);
+
+document.getElementById("btn-cloud-force-upload").addEventListener("click",async()=>{
+  const btn=document.getElementById("btn-cloud-force-upload");
+  const orig=btn.innerHTML;
+  btn.disabled=true;btn.innerHTML="Subiendo...";
+  try{
+    const data=load();
+    data._ts=Date.now();
+    await syncToCloud(data);
+    showToast("\u2601 Datos subidos a la nube (incluye cumplea\u00f1os y aniversarios) \u2713");
+  }catch(e){
+    alert("Error al subir: "+e.message);
+  }
+  btn.disabled=false;btn.innerHTML=orig;
+});
 document.getElementById("modal-cloud").addEventListener("click",e=>{if(e.target===document.getElementById("modal-cloud"))closeCloudModal();});
 
 document.getElementById("btn-copy-current-code").addEventListener("click",()=>{
