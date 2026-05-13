@@ -46,7 +46,7 @@
     .cal-wrap { overflow-x:auto; overflow-y:auto; max-height:calc(100vh - 200px); border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.09); }
     #cal-table { border-collapse:collapse; width:100%; font-size:.8rem; }
     #cal-table th, #cal-table td { border:1px solid #e2e8f0; text-align:center; white-space:nowrap; }
-    #cal-table th:first-child, #cal-table td:first-child { position:sticky; left:0; z-index:5; text-align:left; padding:7px 12px; min-width:175px; max-width:215px; }
+    #cal-table th:first-child, #cal-table td:first-child { position:sticky; left:0; z-index:5; text-align:left; padding:6px 10px; min-width:230px; max-width:260px; width:240px; }
     #cal-table thead th:first-child { z-index:7; }
     #cal-table thead th { background:#0f172a; color:white; padding:6px 3px; font-weight:600; position:sticky; top:0; z-index:6; }
     #cal-table thead th:first-child { background:#0f172a; }
@@ -65,7 +65,8 @@
     #cal-table td.row-hl.col-hl { background:rgba(30,64,175,.18) !important; outline:2px solid rgba(30,64,175,.35); outline-offset:-2px; }
     #cal-table thead th.col-hl { background:#1e3a8a !important; }
     #cal-table td:first-child.row-hl { background:rgba(30,64,175,.13) !important; font-weight:700; }
-    .collab-name { font-weight:500; color:#374151; overflow:hidden; text-overflow:ellipsis; }
+    .collab-name { font-weight:500; color:#374151; font-size:.82rem; }
+    #cal-table td:first-child { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .collab-idx { font-size:.72rem; color:#94a3b8; margin-right:5px; }
     /* POPUP */
     .pop-overlay { display:none; position:fixed; inset:0; z-index:900; }
@@ -113,10 +114,10 @@
     .coll-let-row { background:#f5f3ff; }
     .coll-let-row:hover { background:#ede9fe; }
     .eq-section-header { padding:7px 16px 5px; font-size:.75rem; font-weight:700; color:#6d28d9; text-transform:uppercase; letter-spacing:.06em; background:#ede9fe; border-top:2px solid #c4b5fd; border-bottom:1px solid #ddd6fe; }
-    .let-cal-badge { display:inline-block;background:#7c3aed;color:white;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle; }
-    .eq-cal-badge { display:inline-block;background:#0284c7;color:white;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle; }
-    .gmin-cal-badge { display:inline-block;background:#dbeafe;color:#1e40af;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle;font-family:monospace; }
-    .cal-del-btn { opacity:0; margin-left:6px; background:#fee2e2; color:#b91c1c; border:none; border-radius:4px; padding:1px 5px; font-size:.7rem; font-weight:700; cursor:pointer; transition:opacity .15s; }
+    .let-cal-badge { display:inline-block;background:#7c3aed;color:white;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle;flex-shrink:0; }
+    .eq-cal-badge { display:inline-block;background:#0284c7;color:white;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle;flex-shrink:0; }
+    .gmin-cal-badge { display:inline-block;background:#dbeafe;color:#1e40af;font-size:.58rem;padding:1px 4px;border-radius:3px;font-weight:700;margin-right:3px;vertical-align:middle;font-family:monospace;flex-shrink:0; }
+    .cal-del-btn { opacity:0; margin-left:4px; background:#fee2e2; color:#b91c1c; border:none; border-radius:4px; padding:1px 5px; font-size:.7rem; font-weight:700; cursor:pointer; transition:opacity .15s; flex-shrink:0; }
     tr:hover .cal-del-btn { opacity:1; }
     .cal-del-btn:hover { background:#dc2626; color:white; }
     .cal-eq-sep td { background:#f1f5f9!important;font-size:.72rem;font-weight:700;color:#475569;padding:4px 8px;border-top:2px solid #cbd5e1; }
@@ -187,7 +188,7 @@
       .legend { gap:8px; flex-wrap:wrap; }
       
       /* TABLA CALENDARIO */
-      #cal-table th:first-child, #cal-table td:first-child { min-width:100px; max-width:130px; padding:8px 6px; font-size:.75rem; }
+      #cal-table th:first-child, #cal-table td:first-child { min-width:140px; max-width:170px; width:150px; padding:6px 4px; font-size:.72rem; }
       .ic-cell { min-width:38px; padding:4px 2px; }
       .cal-search-wrap { width:100%; }
       .cal-search { min-height:44px; font-size:.9rem; }
@@ -395,9 +396,10 @@
     .vcal td.wk-cell { background:#f8fafc; border:1px solid #cbd5e1; text-align:center; vertical-align:middle; padding:4px 2px; }
     .vc-day-num { font-weight:700; color:#1e293b; font-size:.8rem; margin-bottom:3px; display:block; }
     .vc-day-num.rest { color:#94a3b8; }
-    .vc-chip { display:flex; align-items:center; gap:3px; margin-bottom:2px; border-radius:4px; padding:2px 5px; font-size:.68rem; font-weight:600; line-height:1.3; }
+    .vc-chip { display:flex; align-items:center; gap:3px; margin-bottom:2px; border-radius:4px; padding:2px 5px; font-size:.68rem; font-weight:600; line-height:1.3; border-left:3px solid transparent; }
     .vc-chip .vc-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
     .vc-chip .vc-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .vc-eq-badge { display:inline-block; font-size:.58rem; font-weight:800; padding:0 4px; border-radius:3px; color:white; flex-shrink:0; min-width:14px; text-align:center; line-height:1.4; }
     .wk-label { font-size:.65rem; font-weight:700; color:#64748b; display:block; }
     .wk-shift { font-size:.7rem; font-weight:800; display:block; padding:2px 4px; border-radius:4px; margin-top:3px; }
     .wk-shift.dia   { background:#0ea5e9; color:white; }
@@ -530,7 +532,7 @@
     /* Responsive tablets (768-1024px) */
     @media(min-width:768px) and (max-width:1024px){
       .tab-panel { padding:20px 16px; }
-      #cal-table th:first-child, #cal-table td:first-child { min-width:140px; font-size:.82rem; }
+      #cal-table th:first-child, #cal-table td:first-child { min-width:180px; max-width:210px; width:190px; font-size:.78rem; }
       .ic-cell { min-width:42px; }
       .modal-box { width:90vw; max-width:700px; }
       .charts-grid { grid-template-columns:1fr; gap:16px; }
@@ -837,6 +839,7 @@
     </div>
   </div>
   <div class="vcal-wrap"><table class="vcal" id="vcal-table"></table></div>
+  <div id="vista-eq-legend" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;font-size:.72rem;color:#475569;"></div>
 </section>
 
 <!-- ANÁLISIS -->
@@ -2957,13 +2960,20 @@ function renderVistaCalendar(){
       html+=`<span class="vc-day-num${wk?" rest":""}">${d}${holiday?` <span style="font-size:.6rem;color:#7c3aed;" title="${esc(holiday)}">&#127919;</span>`:""}${isNow?` <span style="font-size:.6rem;background:#f59e0b;color:white;padding:0 3px;border-radius:3px">HOY</span>`:""}</span>`;
       // people with incidents
       const dayData=data.incidents[key]||{};
+      // Mapa nombre -> {equipo, isLET} para colorear y badge
+      const collabInfo=new Map(data.collaborators.map(c=>[cName(c),{equipo:typeof c==="string"?"":(c.equipo||""),isLET:typeof c==="string"?false:!!c.isLET}]));
+      // Paleta de colores por número de equipo
+      const eqColors=['#0284c7','#16a34a','#dc2626','#ea580c','#7c3aed','#db2777','#0891b2','#65a30d','#9333ea','#be123c'];
+      const eqColor=(eq)=>{const n=parseInt(eq);return !isNaN(n)?eqColors[(n-1)%eqColors.length]:'#64748b';};
       Object.entries(dayData).forEach(([name,incId])=>{
         if(!incId)return;
         const inc=INC_MAP[incId];
         const clr=inc?inc.color:"#64748b";
-        const light=inc?isLightColor(clr):true;
-        const abbr=`<span class="vc-dot" style="background:${clr}"></span>`;
-        html+=`<div class="vc-chip" style="background:${clr}18;"><span class="vc-dot" style="background:${clr}"></span><span class="vc-name" style="color:${light?"#1e293b":"#1e293b"}" title="${esc(name)}">${esc(name)}</span></div>`;
+        const info=collabInfo.get(name)||{equipo:"",isLET:false};
+        const eqClr=info.equipo?eqColor(info.equipo):"#cbd5e1";
+        const eqBadge=info.equipo?`<span class="vc-eq-badge" style="background:${eqClr}" title="Equipo ${esc(info.equipo)}">${esc(info.equipo)}</span>`:"";
+        const letBadge=info.isLET?`<span class="vc-eq-badge" style="background:#7c3aed" title="LET">L</span>`:"";
+        html+=`<div class="vc-chip" style="background:${clr}18;border-left-color:${eqClr};" title="${esc(name)} — ${inc?inc.name:incId}${info.equipo?' — Equipo '+info.equipo:''}"><span class="vc-dot" style="background:${clr}"></span>${eqBadge}${letBadge}<span class="vc-name">${esc(name)}</span></div>`;
       });
       html+=`</td>`;
     }
@@ -2971,6 +2981,19 @@ function renderVistaCalendar(){
   }
   html+="</tbody>";
   document.getElementById("vcal-table").innerHTML=html;
+
+  // Leyenda de equipos
+  const eqColors=['#0284c7','#16a34a','#dc2626','#ea580c','#7c3aed','#db2777','#0891b2','#65a30d','#9333ea','#be123c'];
+  const eqColor=(eq)=>{const n=parseInt(eq);return !isNaN(n)?eqColors[(n-1)%eqColors.length]:'#64748b';};
+  const equipos=Array.from(new Set(data.collaborators.map(c=>(typeof c==="string"?"":(c.equipo||""))).filter(Boolean))).sort((a,b)=>{const na=Number(a),nb=Number(b);return(!isNaN(na)&&!isNaN(nb))?(na-nb):a.localeCompare(b);});
+  const legendEl=document.getElementById("vista-eq-legend");
+  if(legendEl){
+    legendEl.innerHTML=equipos.length?
+      `<span style="font-weight:700;margin-right:4px;">Equipos:</span>`+
+      equipos.map(eq=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;padding:2px 8px;border-radius:12px;border-left:3px solid ${eqColor(eq)};"><span style="background:${eqColor(eq)};color:white;font-size:.6rem;font-weight:800;padding:0 5px;border-radius:3px;">${esc(eq)}</span>EQ${esc(eq)}</span>`).join("")+
+      `<span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;padding:2px 8px;border-radius:12px;border-left:3px solid #7c3aed;"><span style="background:#7c3aed;color:white;font-size:.6rem;font-weight:800;padding:0 5px;border-radius:3px;">L</span>LET</span>`
+      :"";
+  }
 }
 
 document.getElementById("vista-prev").addEventListener("click",()=>{vistaMonth--;if(vistaMonth<0){vistaMonth=11;vistaYear--;}renderVistaCalendar();});
