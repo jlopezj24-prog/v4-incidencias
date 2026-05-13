@@ -3305,7 +3305,17 @@ function processExcelFile(file){
 function processCollabRows(rows){
   if(!rows||!rows.length){alert("No se encontraron datos.");return;}
 
-  // Detectar formato examinando primeras 3 filas
+  // Normalizar: cada fila debe ser un array. Si vienen objetos (ej. parsePastedTable),
+  // o strings, o cualquier cosa, convertir a array.
+  rows=rows.map(r=>{
+    if(Array.isArray(r))return r;
+    if(r==null)return [];
+    if(typeof r==="object")return Object.values(r);
+    if(typeof r==="string")return [r];
+    return [String(r)];
+  });
+
+  // Detectar formato examinando primeras 6 filas (MX Details puede tener filas título antes)
   let nameColIdx=0;
   let gminColIdx=-1;
   let startRow=1;
@@ -3314,10 +3324,12 @@ function processCollabRows(rows){
   let detectedFormat='Genérico';
   let headerFound=false;
 
-  for(let r=0;r<Math.min(3,rows.length);r++){
+  for(let r=0;r<Math.min(6,rows.length);r++){
     const hdr=(rows[r]||[]).map(h=>String(h).toLowerCase().trim());
-    const gmIdx=hdr.findIndex(h=>/^gmin$|gm.?in|employee.?id|id.?empleado/i.test(h));
-    const nmIdx=hdr.findIndex(h=>/\bmet\b|nombre|name|empleado|colaborador|worker/i.test(h));
+    // GMIN debe ser palabra exacta o muy corta (no que aparezca dentro de un texto largo)
+    const gmIdx=hdr.findIndex(h=>h.length<=20&&(/^gmin$/i.test(h)||/^employee\s*id$/i.test(h)||/^id\s*empleado$/i.test(h)||/^numero\s*empleado$/i.test(h)));
+    // Nombre: palabra corta que sea solo "nombre", "name", "worker", "colaborador", "empleado"
+    const nmIdx=hdr.findIndex(h=>h.length<=25&&/^(nombre|name|worker|colaborador|empleado(\s+nombre)?|met)$/i.test(h));
     const hasExtra=hdr.some(h=>/l[ií]nea|mayor|costo|fecha|department|departamento|hire/i.test(h));
 
     if(gmIdx>=0&&nmIdx>=0){
@@ -3328,52 +3340,126 @@ function processCollabRows(rows){
       isNumerico=true;nameColIdx=nmIdx;startRow=r+1;
       detectedFormat='Numérico';headerFound=true;break;
     }
-    if(nmIdx>=0){nameColIdx=nmIdx;startRow=r+1;headerFound=true;}
+    if(nmIdx>=0&&!headerFound){nameColIdx=nmIdx;startRow=r+1;headerFound=true;}
   }
   if(!headerFound){startRow=0;} // sin encabezado: tomar todas las filas col 0
 
-  // Construir items {name, gmin}
+  // Construir items {name, gmin} — saltando filas tipo encabezado o título
   const items=[];
+  const skipPattern=/^(gmin|nombre|name|worker|colaborador|empleado|met|hyperfind|período|periodo|todos\s+mis|reporte)/i;
   for(let ri=startRow;ri<rows.length;ri++){
     const row=rows[ri];if(!row)continue;
     const nameRaw=String(row[nameColIdx]||"").trim();
     if(!nameRaw)continue;
-    // "Apellido, Nombre" → "Nombre Apellido"
-    let name=nameRaw;
-    if(nameRaw.includes(',')){
-      const parts=nameRaw.split(',').map(s=>s.trim());
-      if(parts.length===2&&parts[0]&&parts[1])name=parts[1]+' '+parts[0];
-    }
+    if(skipPattern.test(nameRaw))continue; // saltar texto título residual
+    const name=nameRaw;
     const gmin=gminColIdx>=0?String(row[gminColIdx]||"").trim():"";
     items.push({name,gmin});
   }
 
   if(!items.length){
-    alert("No se encontraron colaboradores.\n\nFormato detectado: "+detectedFormat+"\n\nVerifica que haya una columna con nombres.");
+    // Mostrar diagnóstico de las primeras filas para que el usuario vea qué pasó
+    const debug=rows.slice(0,5).map((r,i)=>`Fila ${i+1}: ${JSON.stringify(r).substring(0,150)}`).join("\n");
+    alert("No se encontraron colaboradores.\n\nFormato detectado: "+detectedFormat+"\n\nPrimeras filas leídas:\n"+debug);
     return;
   }
 
   const existing=load().collaborators;
   const existingNames=existing.map(c=>cName(c));
-  const newItems=items.filter(it=>!existingNames.includes(it.name));
-  const dupItems=items.filter(it=>existingNames.includes(it.name));
-  // Solo los duplicados que tienen GMIN y cuyo GMIN difiere del actual son candidatos a actualizar
-  const dupWithGmin=dupItems.filter(it=>{
-    if(!it.gmin)return false;
-    const c=existing.find(x=>cName(x)===it.name);
-    const cur=(c&&typeof c!=="string")?(c.gmin||""):"";
-    return cur!==it.gmin;
-  });
+  // Limpia puntuación (comas, puntos) antes de normalizar para matching
+  const cleanForMatch=(s)=>normalizeName(String(s||"").replace(/[.,;:]/g,' '));
+  const existingNamesNorm=existingNames.map(n=>cleanForMatch(n));
+  // "palabras ordenadas" para matching robusto sin importar orden
+  const sortedWords=(s)=>cleanForMatch(s).split(/\s+/).filter(Boolean).sort().join(' ');
+  const existingWordsSorted=existingNames.map(n=>sortedWords(n));
+  const existingGmins=existing.map(c=>(typeof c==="string"?"":(c.gmin||"")).toString().trim());
+
+  // Tokens de un nombre: palabras de >=2 letras (ignora iniciales tipo "G.")
+  const tokensFull=(s)=>cleanForMatch(s).split(/\s+/).filter(t=>t.length>=2);
+  const tokensAll=(s)=>cleanForMatch(s).split(/\s+/).filter(Boolean);
+  const existingTokensFull=existingNames.map(n=>tokensFull(n));
+  const existingTokensAll=existingNames.map(n=>tokensAll(n));
+
+  // ¿"a" es subconjunto de "b"? (todas las palabras completas de a están en b)
+  const isSubset=(a,b)=>{
+    if(!a.length)return false;
+    const bset=new Set(b);
+    return a.every(t=>bset.has(t));
+  };
+  // Match con iniciales: una palabra de 1 letra (ej. "g") matchea si existe en B una palabra que empiece por "g"
+  const matchWithInitials=(short,long)=>{
+    if(!short.length)return false;
+    const usedLong=new Set();
+    for(const t of short){
+      if(t.length>=2){
+        if(!long.includes(t))return false;
+      }else{
+        // inicial: buscar palabra de "long" no usada que empiece por t
+        const idx=long.findIndex((lt,i)=>!usedLong.has(i)&&lt.length>=2&&lt[0]===t);
+        if(idx<0)return false;
+        usedLong.add(idx);
+      }
+    }
+    return true;
+  };
+
+  // Encuentra índice del colaborador existente que matchea por: GMIN, nombre normalizado, o palabras
+  const findExistingIdx=(it)=>{
+    // 1. Match por GMIN exacto
+    if(it.gmin){
+      const i=existingGmins.indexOf(String(it.gmin).trim());
+      if(i>=0&&existingGmins[i])return i;
+    }
+    // 2. Match por nombre limpio (sin puntuación)
+    const norm=cleanForMatch(it.name);
+    let i=existingNamesNorm.indexOf(norm);
+    if(i>=0)return i;
+    // 3. Match por palabras ordenadas (ignora orden Apellido/Nombre y comas)
+    const sw=sortedWords(it.name);
+    if(sw){
+      i=existingWordsSorted.indexOf(sw);
+      if(i>=0)return i;
+    }
+    // 4. Match por subconjunto/iniciales (app: "Luis Gustavo Segura G." vs MX: "Segura Gonzalez, Luis Gustavo")
+    const itTokensFull=tokensFull(it.name);
+    const itTokensAll=tokensAll(it.name);
+    for(let k=0;k<existingTokensFull.length;k++){
+      const exFull=existingTokensFull[k];
+      const exAll=existingTokensAll[k];
+      // Caso A: tokens completos del existente ⊆ tokens del importado (app abreviado, MX completo)
+      if(matchWithInitials(exAll,itTokensFull))return k;
+      // Caso B: tokens completos del importado ⊆ existente (app completo, MX abreviado)
+      if(matchWithInitials(itTokensAll,exFull))return k;
+      // Caso C: ambos completos, subset directo
+      if(exFull.length>=2&&itTokensFull.length>=2&&isSubset(exFull,itTokensFull))return k;
+      if(exFull.length>=2&&itTokensFull.length>=2&&isSubset(itTokensFull,exFull))return k;
+    }
+    return -1;
+  };
+
+  const matched=items.map(it=>({it,idx:findExistingIdx(it)}));
+  const newItems=matched.filter(m=>m.idx<0).map(m=>m.it);
+  const dupItems=matched.filter(m=>m.idx>=0);
+  // Duplicados que tienen GMIN nuevo o distinto al actual
+  const dupWithGmin=dupItems.filter(m=>{
+    if(!m.it.gmin)return false;
+    const c=existing[m.idx];
+    const cur=(c&&typeof c!=="string")?String(c.gmin||"").trim():"";
+    return cur!==String(m.it.gmin).trim();
+  }).map(m=>({name:cName(existing[m.idx]),gmin:m.it.gmin,idx:m.idx}));
   pendingImportNames=newItems;
-  pendingImportUpdates=dupWithGmin; // {name, gmin} a actualizar si checkbox activo
+  pendingImportUpdates=dupWithGmin;
 
   const formatBadge=isMxDetails?
     `<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:.8rem;color:#065f46">&#128196; Detectado: <b>${detectedFormat}</b> &mdash; GMIN col. ${gminColIdx+1}, Nombre col. ${nameColIdx+1}, datos desde fila ${startRow+1}</div>`:
     isNumerico?`<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:.8rem;color:#1d4ed8">&#128196; Detectado: <b>${detectedFormat}</b> &mdash; columna de nombre en posición ${nameColIdx+1}</div>`:
     "";
 
+  // Debug visual: muestra qué columnas detectó
+  const debugInfo=`<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:.72rem;color:#78350f;font-family:monospace;">🔍 Encabezado fila ${startRow}: nameCol=${nameColIdx}, gminCol=${gminColIdx} · 1er nombre detectado: "${esc(items[0]?.name||'')}" · 1er GMIN: "${esc(items[0]?.gmin||'')}"</div>`;
+
   document.getElementById("import-summary").innerHTML=
-    formatBadge+
+    formatBadge+debugInfo+
     `Se encontraron <b>${items.length}</b> colaborador(es):<br>`+
     `<b style="color:#166534">${newItems.length} nuevos</b> para agregar`+
     (dupWithGmin.length?` &nbsp;&middot;&nbsp; <b style="color:#0369a1">${dupWithGmin.length} con GMIN para actualizar</b>`:"")+
@@ -3383,7 +3469,8 @@ function processCollabRows(rows){
     const gminTag=it.gmin?`<span style="display:inline-block;background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:4px;font-size:.7rem;font-weight:700;margin-right:6px;font-family:monospace;">GMIN ${esc(it.gmin)}</span>`:"";
     return `<div class="import-row">${badge}${gminTag}${esc(it.name)}</div>`;
   };
-  const dupNoChange=dupItems.filter(it=>!dupWithGmin.includes(it));
+  const updateIdxSet=new Set(dupWithGmin.map(u=>u.idx));
+  const dupNoChange=dupItems.filter(m=>!updateIdxSet.has(m.idx)).map(m=>m.it);
   document.getElementById("import-preview-list").innerHTML=
     [...newItems.map(it=>renderPreview(it,'<span class="import-badge badge-new">NUEVO</span>')),
      ...dupWithGmin.map(it=>renderPreview(it,'<span class="import-badge" style="background:#0284c7;color:white">ACTUALIZAR GMIN</span>')),
@@ -3501,11 +3588,44 @@ document.getElementById("btn-import-confirm").addEventListener("click",()=>{
   if(!pendingImportNames.length&&!(updateGmin&&pendingImportUpdates.length))return;
   const data=load();
   let added=0,updated=0;
+  const cleanForMatch=(s)=>normalizeName(String(s||"").replace(/[.,;:]/g,' '));
+  const sortedWords=(s)=>cleanForMatch(s).split(/\s+/).filter(Boolean).sort().join(' ');
+  const tokensFull=(s)=>cleanForMatch(s).split(/\s+/).filter(t=>t.length>=2);
+  const tokensAll=(s)=>cleanForMatch(s).split(/\s+/).filter(Boolean);
+  const matchWithInitials=(short,long)=>{
+    if(!short.length)return false;
+    const usedLong=new Set();
+    for(const t of short){
+      if(t.length>=2){if(!long.includes(t))return false;}
+      else{
+        const idx=long.findIndex((lt,i)=>!usedLong.has(i)&&lt.length>=2&&lt[0]===t);
+        if(idx<0)return false;
+        usedLong.add(idx);
+      }
+    }
+    return true;
+  };
+  // Helper: ¿ya existe un colaborador con este nombre (cualquier orden, abreviaturas, o GMIN)?
+  const alreadyExists=(name,gmin)=>{
+    const norm=cleanForMatch(name);const sw=sortedWords(name);
+    const itAll=tokensAll(name);const itFull=tokensFull(name);
+    return data.collaborators.some(c=>{
+      const cn=cName(c);
+      if(cleanForMatch(cn)===norm)return true;
+      if(sw&&sortedWords(cn)===sw)return true;
+      const cg=(typeof c==="string"?"":(c.gmin||"")).toString().trim();
+      if(gmin&&cg&&cg===String(gmin).trim())return true;
+      const cAll=tokensAll(cn);const cFull=tokensFull(cn);
+      if(matchWithInitials(cAll,itFull))return true;
+      if(matchWithInitials(itAll,cFull))return true;
+      return false;
+    });
+  };
   // Agregar nuevos
   pendingImportNames.forEach(item=>{
     const name=typeof item==="string"?item:item.name;
     const gmin=typeof item==="string"?"":(item.gmin||"");
-    if(!data.collaborators.some(c=>cName(c)===name)){
+    if(!alreadyExists(name,gmin)){
       data.collaborators.push({name,gmin,equipo:"",isLET:false});
       added++;
     }
@@ -3513,8 +3633,8 @@ document.getElementById("btn-import-confirm").addEventListener("click",()=>{
   // Actualizar GMIN de existentes (preserva equipo, isLET, etc.)
   if(updateGmin){
     pendingImportUpdates.forEach(it=>{
-      const idx=data.collaborators.findIndex(c=>cName(c)===it.name);
-      if(idx<0)return;
+      const idx=it.idx!=null?it.idx:data.collaborators.findIndex(c=>normalizeName(cName(c))===normalizeName(it.name));
+      if(idx<0||idx>=data.collaborators.length)return;
       const cur=data.collaborators[idx];
       if(typeof cur==="string"){
         data.collaborators[idx]={name:cur,gmin:it.gmin,equipo:"",isLET:false};
