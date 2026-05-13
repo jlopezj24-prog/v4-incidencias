@@ -1133,6 +1133,10 @@
 
     <div id="import-preview-section" style="display:none">
       <div class="import-summary" id="import-summary"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-size:.85rem;color:#374151;cursor:pointer;background:#f0f9ff;padding:8px 12px;border-radius:6px;border:1px solid #bae6fd;">
+        <input type="checkbox" id="chk-update-gmin" checked style="width:16px;height:16px;cursor:pointer;accent-color:#0284c7;" />
+        <span><b>Actualizar GMIN</b> de colaboradores que ya existen (conserva equipo, LET e incidencias)</span>
+      </label>
       <div class="import-preview" id="import-preview-list"></div>
     </div>
 
@@ -3245,9 +3249,11 @@ document.getElementById("btn-export-plan").addEventListener("click",()=>{
    EXCEL IMPORT
 ═══════════════════════════════════════════ */
 let pendingImportNames = [];
+let pendingImportUpdates = [];
 
 function openImportModal(){
   pendingImportNames=[];
+  pendingImportUpdates=[];
   document.getElementById("import-drop-zone").style.display="block";
   document.getElementById("import-preview-section").style.display="none";
   document.getElementById("btn-import-confirm").style.display="none";
@@ -3351,7 +3357,15 @@ function processCollabRows(rows){
   const existingNames=existing.map(c=>cName(c));
   const newItems=items.filter(it=>!existingNames.includes(it.name));
   const dupItems=items.filter(it=>existingNames.includes(it.name));
+  // Solo los duplicados que tienen GMIN y cuyo GMIN difiere del actual son candidatos a actualizar
+  const dupWithGmin=dupItems.filter(it=>{
+    if(!it.gmin)return false;
+    const c=existing.find(x=>cName(x)===it.name);
+    const cur=(c&&typeof c!=="string")?(c.gmin||""):"";
+    return cur!==it.gmin;
+  });
   pendingImportNames=newItems;
+  pendingImportUpdates=dupWithGmin; // {name, gmin} a actualizar si checkbox activo
 
   const formatBadge=isMxDetails?
     `<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:.8rem;color:#065f46">&#128196; Detectado: <b>${detectedFormat}</b> &mdash; GMIN col. ${gminColIdx+1}, Nombre col. ${nameColIdx+1}, datos desde fila ${startRow+1}</div>`:
@@ -3362,20 +3376,23 @@ function processCollabRows(rows){
     formatBadge+
     `Se encontraron <b>${items.length}</b> colaborador(es):<br>`+
     `<b style="color:#166534">${newItems.length} nuevos</b> para agregar`+
-    (dupItems.length?` &nbsp;&middot;&nbsp; <span>${dupItems.length} ya existentes (se omitirán)</span>`:"");
+    (dupWithGmin.length?` &nbsp;&middot;&nbsp; <b style="color:#0369a1">${dupWithGmin.length} con GMIN para actualizar</b>`:"")+
+    (dupItems.length-dupWithGmin.length>0?` &nbsp;&middot;&nbsp; <span>${dupItems.length-dupWithGmin.length} ya existentes sin cambios</span>`:"");
 
   const renderPreview=(it,badge)=>{
     const gminTag=it.gmin?`<span style="display:inline-block;background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:4px;font-size:.7rem;font-weight:700;margin-right:6px;font-family:monospace;">GMIN ${esc(it.gmin)}</span>`:"";
     return `<div class="import-row">${badge}${gminTag}${esc(it.name)}</div>`;
   };
+  const dupNoChange=dupItems.filter(it=>!dupWithGmin.includes(it));
   document.getElementById("import-preview-list").innerHTML=
     [...newItems.map(it=>renderPreview(it,'<span class="import-badge badge-new">NUEVO</span>')),
-     ...dupItems.map(it=>renderPreview(it,'<span class="import-badge badge-dup">YA EXISTE</span>'))
+     ...dupWithGmin.map(it=>renderPreview(it,'<span class="import-badge" style="background:#0284c7;color:white">ACTUALIZAR GMIN</span>')),
+     ...dupNoChange.map(it=>renderPreview(it,'<span class="import-badge badge-dup">YA EXISTE</span>'))
     ].join("");
 
   document.getElementById("import-drop-zone").style.display="none";
   document.getElementById("import-preview-section").style.display="block";
-  document.getElementById("btn-import-confirm").style.display=newItems.length?"inline-block":"none";
+  document.getElementById("btn-import-confirm").style.display=(newItems.length||dupWithGmin.length)?"inline-block":"none";
 }
 
 /* Modal para pegar colaboradores desde Excel (bypass DLP) */
@@ -3460,11 +3477,12 @@ function updatePasteCollabsPreview(txt){
 document.getElementById('btn-paste-collabs').addEventListener('click',openPasteCollabsModal);
 
 document.getElementById("btn-import-confirm").addEventListener("click",()=>{
-  if(!pendingImportNames.length)return;
+  const updateGmin=document.getElementById("chk-update-gmin")?.checked;
+  if(!pendingImportNames.length&&!(updateGmin&&pendingImportUpdates.length))return;
   const data=load();
-  let added=0;
+  let added=0,updated=0;
+  // Agregar nuevos
   pendingImportNames.forEach(item=>{
-    // item puede ser string (legacy) u objeto {name, gmin}
     const name=typeof item==="string"?item:item.name;
     const gmin=typeof item==="string"?"":(item.gmin||"");
     if(!data.collaborators.some(c=>cName(c)===name)){
@@ -3472,12 +3490,30 @@ document.getElementById("btn-import-confirm").addEventListener("click",()=>{
       added++;
     }
   });
+  // Actualizar GMIN de existentes (preserva equipo, isLET, etc.)
+  if(updateGmin){
+    pendingImportUpdates.forEach(it=>{
+      const idx=data.collaborators.findIndex(c=>cName(c)===it.name);
+      if(idx<0)return;
+      const cur=data.collaborators[idx];
+      if(typeof cur==="string"){
+        data.collaborators[idx]={name:cur,gmin:it.gmin,equipo:"",isLET:false};
+      }else{
+        data.collaborators[idx]={...cur,gmin:it.gmin};
+      }
+      updated++;
+    });
+  }
   save(data);
   closeImportModal();
   renderCollabs();
   renderCalendar();
-  showToast(`Se importaron ${added} colaborador(es). Asigna su equipo y LET en la pesta\u00f1a Colaboradores.`);
+  const parts=[];
+  if(added)parts.push(`${added} agregado(s)`);
+  if(updated)parts.push(`${updated} GMIN actualizado(s)`);
+  showToast(parts.length?`✓ ${parts.join(' · ')}`:'Sin cambios');
   pendingImportNames=[];
+  pendingImportUpdates=[];
 });
 
 /* ── Toast notification ── */
