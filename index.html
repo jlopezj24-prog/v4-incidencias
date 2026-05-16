@@ -5,11 +5,31 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="referrer" content="no-referrer" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V4 Vestiduras — Control de Incidencias</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js" crossorigin="anonymous"></script>
+  <script>
+    // Aviso si la pol\u00edtica CSP de SharePoint bloque\u00f3 alguna librer\u00eda externa
+    window.addEventListener('load',function(){
+      setTimeout(function(){
+        var faltan=[];
+        if(typeof XLSX==='undefined')faltan.push('XLSX (importar Excel)');
+        if(typeof Chart==='undefined')faltan.push('Chart.js (gr\u00e1ficas)');
+        if(faltan.length){
+          console.warn('Librer\u00edas no cargadas:',faltan);
+          var b=document.createElement('div');
+          b.style.cssText='position:fixed;top:0;left:0;right:0;background:#fef2f2;color:#991b1b;padding:8px 14px;font:600 .8rem system-ui;z-index:99999;border-bottom:2px solid #dc2626;text-align:center;';
+          b.innerHTML='\u26a0\ufe0f No se pudieron cargar: '+faltan.join(', ')+'. Si est\u00e1s en SharePoint y la pol\u00edtica bloquea CDNs externos, pide a IT permitir <code>cdn.jsdelivr.net</code> o usa la versi\u00f3n con librer\u00edas locales.';
+          document.body.appendChild(b);
+        }
+      },1500);
+    });
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; min-height: 100vh; }
@@ -1223,6 +1243,7 @@
     <div class="modal-actions">
       <button class="btn-cancel" id="btn-cloud-cancel">Cancelar</button>
       <button class="btn-cancel" id="btn-cloud-force-upload" style="color:#0284c7;border-color:#0284c7;" title="Sube TODOS los datos locales (cumpleaños, aniversarios, evidencias, etc.) a la nube ahora">&#9650; Subir ahora</button>
+      <button class="btn-cancel" id="btn-cloud-force-download" style="color:#16a34a;border-color:#16a34a;" title="Descarga y sobrescribe TODOS los datos desde la nube (cumpleaños, aniversarios, evidencias, etc.)">&#9660; Bajar de nube</button>
       <button class="btn-cancel" id="btn-cloud-clear" style="color:#ef4444;border-color:#ef4444;">Desactivar nube</button>
       <button class="btn-primary" id="btn-cloud-save">Guardar y Conectar</button>
     </div>
@@ -6172,10 +6193,21 @@ async function syncToCloud(data){
         if(v!==null)data._extras[k]=v;
       });
     }catch(e){console.warn("syncToCloud _extras",e);}
+    // Comprimir con LZString para evitar el límite de 100KB de JSONBin Free
+    let body;
+    const raw=JSON.stringify(data);
+    if(typeof LZString!=="undefined"){
+      const c=LZString.compressToBase64(raw);
+      body=JSON.stringify({_lz:1,v:1,c});
+      try{console.log(`[sync] payload ${raw.length}B → ${body.length}B (${Math.round(100*body.length/raw.length)}%)`);}catch{}
+    }else{
+      body=raw;
+      console.warn("LZString no disponible — enviando sin comprimir");
+    }
     const resp=await fetch(`${JSONBIN}/${binId}`,{
       method:"PUT",
       headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Versioning":"false"},
-      body:JSON.stringify(data)
+      body
     });
     if(!resp.ok){const t=await resp.text();throw new Error(`HTTP ${resp.status}: ${t}`);}
     setSyncUI("ok","Nube ✓");
@@ -6199,7 +6231,20 @@ async function syncFromCloud(showResult, forceLoad){
     }
     const json=await resp.json();
     if(json.record&&typeof json.record==="object"){
-      const cloudData=json.record;
+      let cloudData=json.record;
+      // Descomprimir si el record viene en formato LZString
+      if(cloudData && cloudData._lz===1 && typeof cloudData.c==="string"){
+        if(typeof LZString==="undefined"){
+          throw new Error("Datos comprimidos en la nube pero LZString no cargado");
+        }
+        try{
+          const dec=LZString.decompressFromBase64(cloudData.c);
+          if(!dec) throw new Error("decompress devolvió vacío");
+          cloudData=JSON.parse(dec);
+        }catch(e){
+          throw new Error("Fallo al descomprimir datos de la nube: "+e.message);
+        }
+      }
       const localData=load();
       const cloudTs=cloudData._ts||0;
       const localTs=localData._ts||0;
@@ -6296,6 +6341,21 @@ document.getElementById("btn-cloud-force-upload").addEventListener("click",async
   }
   btn.disabled=false;btn.innerHTML=orig;
 });
+
+document.getElementById("btn-cloud-force-download").addEventListener("click",async()=>{
+  if(!confirm("\u26a0\ufe0f Esto descargar\u00e1 los datos de la nube y SOBRESCRIBIR\u00c1 los locales (cumplea\u00f1os, aniversarios, evidencias, etc.).\n\n\u00bfContinuar?"))return;
+  const btn=document.getElementById("btn-cloud-force-download");
+  const orig=btn.innerHTML;
+  btn.disabled=true;btn.innerHTML="Bajando...";
+  const result=await syncFromCloud(true,true);
+  btn.disabled=false;btn.innerHTML=orig;
+  if(result===true){
+    showToast("\u2601 Datos descargados de la nube \u2713");
+    setTimeout(()=>location.reload(),900);
+  }else if(result&&result.error){
+    alert("\u274c Error al bajar: "+result.error);
+  }
+});
 document.getElementById("modal-cloud").addEventListener("click",e=>{if(e.target===document.getElementById("modal-cloud"))closeCloudModal();});
 
 document.getElementById("btn-copy-current-code").addEventListener("click",()=>{
@@ -6369,7 +6429,7 @@ document.getElementById("btn-cloud-save").addEventListener("click",async()=>{
   const btn=document.getElementById("btn-cloud-save");
   btn.textContent="Conectando...";btn.disabled=true;
   localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey,binId}));
-  const result=await syncFromCloud(true);
+  const result=await syncFromCloud(true,true);
   btn.textContent="Guardar y Conectar";btn.disabled=false;
   if(result===true){closeCloudModal();}
   else if(result&&result.error){alert("\u274C Error al conectar:\n\n"+result.error+"\n\nVerifica que el BIN ID y la Master Key sean correctos.");}
@@ -6388,7 +6448,7 @@ document.getElementById("btn-cloud-code-save").addEventListener("click",async()=
   const btn=document.getElementById("btn-cloud-code-save");
   btn.textContent="Conectando...";btn.disabled=true;
   localStorage.setItem(CLOUD_KEY,JSON.stringify({apiKey:DEFAULT_API_KEY,binId}));
-  const result=await syncFromCloud(true);
+  const result=await syncFromCloud(true,true);
   btn.textContent="\uD83D\uDD17 Conectar";btn.disabled=false;
   if(result===true){
     closeCloudModal();
