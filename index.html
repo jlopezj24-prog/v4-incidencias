@@ -9,6 +9,30 @@
   <meta name="referrer" content="no-referrer" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V4 Vestiduras — Control de Incidencias</title>
+  <script>
+    // Auto-actualizaci\u00f3n: si GitHub Pages tiene una versi\u00f3n m\u00e1s nueva,
+    // recargar autom\u00e1ticamente (una sola vez) sin esperar a que el usuario
+    // limpie la cach\u00e9 manualmente.
+    window.APP_VERSION = "2026.05.16.1";
+    (async () => {
+      try {
+        const url = location.pathname + "?_vc=" + Date.now();
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) return;
+        const txt = await r.text();
+        const m = txt.match(/window\.APP_VERSION\s*=\s*["']([^"']+)["']/);
+        if (m && m[1] !== window.APP_VERSION) {
+          if (!sessionStorage.getItem("__vc_reloaded")) {
+            sessionStorage.setItem("__vc_reloaded", "1");
+            console.log("[version-check] nueva versi\u00f3n detectada:", m[1], "(actual:", window.APP_VERSION + ") \u2014 recargando");
+            location.reload();
+          }
+        } else {
+          sessionStorage.removeItem("__vc_reloaded");
+        }
+      } catch (e) { /* offline / bloqueado por CSP: ignorar */ }
+    })();
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" crossorigin="anonymous"></script>
